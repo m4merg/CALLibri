@@ -16,6 +16,14 @@ use Pod::Usage;
 use File::Basename;
 use Time::HiRes qw(gettimeofday);
 use List::MoreUtils qw(uniq);
+use Storable 'dclone';
+
+use Dir::Self;
+use lib __DIR__ . '/lib';
+use Score;
+use Cigar;
+use Sample;
+
 
 $| = 1;
 
@@ -41,9 +49,10 @@ $| = 1;
 #---    CONSTANTS
 #-------------------------------------------------------------------------------------------
 
-my $qscore_averaging_range      = 2;
-my $qscore_min  = 15; # Ignore positions with base quality score lower then this value;
-my $minimum_coverage = 2; # Positions wiht coverage lower this value will be ignored (defined as non-detectable)
+my $qscore_averaging_range      = 1; # Phred quality score is average in this window/ This value defines half of the window length.
+my $qscore_min  = 16; # Ignore positions with base quality score lower then this value;
+my $minimum_coverage = 2; # Positions with coverage lower this value will be ignored (defined as non-detectable)
+$qscore_min = Score->new($qscore_min);
 
 head();
 
@@ -51,44 +60,7 @@ head();
 #---    CORE SUBROUTINES              
 #-------------------------------------------------------------------------------------------
 
-
-sub scigar {
-	my $cigar	= shift;
-	my $n		= shift;
-	my $count_cigar	= 0;
-	while ($n > 0) {
-		if ( $cigar =~ /^(\d+)(S|M|I|D)/ ) {
-			my $number = $1 - 1;
-			my $letter = $2;
-			if ( ( $letter eq "S" ) or ( $letter eq "I" ) ) {
-				++$count_cigar;
-				}
-			if ( $number eq "0" ) {
-				$cigar =~ s/^\d+\D//;
-				} else {
-					$cigar =~ s/^\d+/$number/;
-					}
-			} elsif ( $cigar =~ /^(\d+)(D)/m ) {
-				$cigar =~ s/^\d+D//;
-				next;
-				}
-		--$n;
-		}
-	return $count_cigar;
-	}
-
-sub score {
-	my $phred	= shift;
-	my $score = 10 ** (-$phred/10);
-	return $score;
-	}
-
-sub unscore {
-	my $score       = shift;
-	return int(-10*log($score)/log(10))
-	}
-
-sub get_stat {
+sub get_stat { # see pipeline function
 	my $Mutation = shift;
 	my $alignment = shift;
 	#aps,ape,rps,rpe,qps,qpe - 0-based coordinates
@@ -106,13 +78,13 @@ sub get_stat {
 	my $ts = $ref; $ts =~ s/-//g;
 	return undef if ($rpe) > length($ts);
 
-	my $cigar = Bio::Cigar->new($alignment->cigar_str);
+	my $cigar = Cigar->new($alignment->cigar_str);
 	try {($qps, $opqs) = $cigar->rpos_to_qpos($rps);};
 	return undef unless defined $qps;
 	$qpe = $qps + length($Mutation->{alt});
 	return undef if $qpe < 0;
 	return undef if $qps < 0;
-	$aps = $rps + scigar($alignment->cigar_str, $rps);
+	$aps = $rps + $cigar->get_shift($rps);
 	$ape = $aps + max(length($Mutation->{alt}),length($Mutation->{ref}));
 	my $stat;
 	$stat->{oref} = substr($ref, $aps, $ape-$aps);
@@ -127,14 +99,14 @@ sub get_stat {
 	return $stat;
 	}
 
-sub get_qscore {
+sub get_qscore { # see pipeline function
 	my $alignment	= shift;
 	my $stat	= shift;
 	my @scores = @{$alignment->qscore};
 	my $qscore_start = max(0, $stat->{qps} - $qscore_averaging_range);
 	my $qscore_end   = min($stat->{qpe} - 1 + $qscore_averaging_range, (scalar @scores) - 1);
 	my $qscore = 0;
-	map {$qscore = $qscore + score($_)} @scores[($qscore_start)..($qscore_end)];
+	map {$qscore = $qscore + Score->new($_)->prob} @scores[($qscore_start)..($qscore_end)];
 	$qscore = $qscore / ($qscore_end - $qscore_start + 1);
 	return $qscore;
 	}
@@ -143,20 +115,12 @@ sub pipeline {
 	my $sam			= shift;
 	my $segment		= shift;
 	my $ampliconsHash	= shift;
-	print STDERR "'$seq_id'\n";
-	next if $seq_id ne 'chr1';
-	my $segment = $sam->segment($seq_id);
-	next unless defined $segment;
-	my @all_alignments = $segment->features;
-	my $prev_position = -1;
+	
+	my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
+	return undef unless defined $sam_segment;
+	my @all_alignments = $sam_segment->features;
 	foreach my $alignment (@all_alignments) {
-		if ($prev_position > $alignment->start) {
-			die "Bam file is not sorted at position $prev_position\n";
-			}
-		$prev_position = $alignment->start;
-		foreach my $Mutation (grep {$_->{contig} eq $seq_id} @{$mutation}) {
-			next unless defined($alignment->start);
-			next if abs($Mutation->{position} - $alignment->start) > 5000;
+		foreach my $Mutation (@{$segment->{mutations}}) {
 			if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
 				next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
 				}
@@ -165,9 +129,9 @@ sub pipeline {
 			
 			my $stat = get_stat($Mutation, $alignment);
 			next unless defined($stat);
-			my $qscore = get_qscore($alignmen, $stat);
-			#print "",$alignment->qname,"\t",$stat->{oref},"\t",$stat->{oalt},"\n";
-			next if $qscore >= score($qscore_min);
+			my $qscore = get_qscore($alignment, $stat);
+			#print "!",$alignment->qname,"\t",$stat->{oref},"\t",$stat->{oalt},"\t",$qscore,"\n";
+			next if $qscore >= $qscore_min->prob;
 			my $read;
 			$read->{name}		= $alignment->qname;
 			$read->{BQ}		= $qscore;
@@ -181,10 +145,12 @@ sub pipeline {
 					(substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}) =~ /^\|*$/)) {
 					$read->{vote} = 'ref';
 					push(@{$Mutation->{reads}}, $read);
+					} else {
+						#print STDERR "WHAT?\n";
 					}
 			}
 		}
-	return $mutation;
+	#return $mutation;
 	}
 
 sub select_amplicon {
@@ -343,15 +309,6 @@ sub load_mutations {
 	return $mutations;
 	}	
 
-sub grep_reference_sam {
-	my $sam = shift;
-	my $references;
-	for (my $i = 0; $i < $sam->header->n_targets; $i++) {
-		$references->{$sam->header->target_name->[$i]} = $sam->header->target_len->[$i];
-		}
-	return $references;
-	}
-
 sub map_mutations_to_segments { # For each segment define which mutations fall within this segment and fill $segment->{mutations} arrays with the corresponding mutation links
 	my $segments	= shift;
 	my $mutations	= shift;
@@ -365,31 +322,85 @@ sub map_mutations_to_segments { # For each segment define which mutations fall w
 	return $segments;
 	}
 
+sub readCountCalc {
+	my $reads = shift;
+	my $type  = shift; # Either 'positive' or 'negative'
+	$type = 'positive' unless defined $type;
+	my $sum;
+	foreach my $Read (@{$reads}) {
+		if ($type eq 'positive') {
+			$sum += 1 - ($Read->{BQ});
+			}
+		if ($type eq 'negative') {
+			$sum += $Read->{BQ}/3;
+			}
+		}
+	return $sum;
+	}
+
+sub readCount {
+	my $Mutation	= shift;
+	my $info	= shift;
+	my $count = 0;
+	my $reads = dclone $Mutation->{reads};
+	my $opposite_reads = [];
+	if (defined($info->{strand})) {
+		$reads = [grep {$_->{strand} eq $info->{strand}} @{$reads}];
+		}
+	if (defined($info->{amplicon})) {
+		$reads = [grep {$_->{amplicon} eq $info->{amplicon}} @{$reads}];
+		}
+	if (defined($info->{vote})) {
+		$opposite_reads = [grep {$_->{vote} ne $info->{vote}} @{$reads}];
+		$reads = [grep {$_->{vote} eq $info->{vote}} @{$reads}];
+		}
+	if (scalar @{$reads} > 0) {
+		$count += readCountCalc($reads, 'positive');
+		#print STDERR "->",readCountCalc($reads, 'positive'),"\n";
+		}
+	if (scalar(@{$opposite_reads}) > 0) {
+		$count += readCountCalc($opposite_reads, 'negative');
+		#print STDERR "->",readCountCalc($opposite_reads, 'negative'),"\n";
+		}
+	return $count;
+	}
+
 #head($inputBam, $refFile, $refVCF, $outFile, $outVCF, $version, $cmdline);
 sub head {
 	my $inputBam	= $ARGV[0];
 	my $panelFile	= $ARGV[1];
 	my $vcfFile	= $ARGV[2];
-	my $sam = Bio::DB::Sam->new(
-		-bam   => "$inputBam",
-		-expand_flags  => 1,
-		-autoindex => 1
-		);
+	my $Sample	= Sample->new($inputBam);
 	
-	my $header	= grep_reference_sam($sam);
-	my $segments	= define_segments($panelFile, $header);
-	my $amplicons	= define_amplicons($panelFile, $header);
-	my $mutations	= load_mutations($vcfFile, $header);
+
+	my $segments		= define_segments($panelFile, $Sample->header);
+	my $ampliconsHash	= define_amplicons($panelFile, $Sample->header);
+	my $mutations		= load_mutations($vcfFile, $Sample->header);
+	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $segments;
+	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $ampliconsHash;
+	die "Can not identify mutations in input VCF file ($vcfFile)\n" unless defined $mutations;
+
 	map_mutations_to_segments($segments, $mutations);
 	
+
 	foreach my $seg (@{$segments}) {
+		next if scalar (@{$seg->{mutations}}) eq 0;
 		print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{mutations}}),"\n";
-		pipeline($sam, $seg, $amplicons);
+		pipeline($Sample->sam, $seg, $ampliconsHash);
+		last;
 		}
 	
-	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $segments;
-	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $amplicons;
-	die "Can not identify mutations in input VCF file ($vcfFile)\n" unless defined $mutations;
+	foreach my $Mutation (@{$mutations}) {
+		next if $Mutation->{position} ne '6529203';
+		foreach my $amplicon (uniq (map {$_->{amplicon}} @{$Mutation->{reads}})) {
+			#print STDERR (scalar @{$Mutation->{reads}}),"\n";
+			#print STDERR (scalar (grep {$_->{strand} eq '1'} @{$Mutation->{reads}})),"\n";
+			#print STDERR (scalar (grep {$_->{strand} eq '1' && $_->{vote} eq 'ref'} @{$Mutation->{reads}})),"\n";
+			#print STDERR (scalar (grep {$_->{strand} eq '1' && $_->{vote} eq 'alt'} @{$Mutation->{reads}})),"\n";
+			print STDERR readCount($Mutation, {vote => 'ref', strand => '1', amplicon => $amplicon}),"\n";
+			print STDERR readCount($Mutation, {vote => 'alt', strand => '1', amplicon => $amplicon}),"\n";
+			}
+		}
 
 	exit;
 	
