@@ -1,5 +1,10 @@
 source("custom_fitdistr_utils.R")
 
+### overwritten custom fitdistr function
+### same usage as original function
+### gof = "ADW" for weighted AD
+### declare weights as param, if not defined will be used array of 1's
+
 mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL, 
           optim.method = "default", lower = -Inf, upper = Inf, custom.optim = NULL, 
           silent = TRUE, gradient = NULL, checkstartfix = FALSE, weights, ...) 
