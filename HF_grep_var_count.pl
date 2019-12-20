@@ -182,72 +182,6 @@ sub select_amplicon {
 	return $selection;
 	}
 
-sub make_mutation_connection {
-	my $mutation;
-	
-	my $mutation_hash_start;
-	foreach my $Mutation (@{$mutation}) {
-		if (not(defined($mutation_hash_start->{$Mutation->{contig}}))) {
-			$mutation_hash_start->{$Mutation->{contig}} = \$Mutation;
-			}
-		my $min = 9999999999999;
-		my $next;
-		foreach my $MutationNext (grep {$_->{contig} eq $Mutation->{contig}} @{$mutation}) {
-			my $equal = 1;
-			foreach my $arg (qw(position ref alt)) {
-				if ($MutationNext->{$arg} ne $Mutation->{$arg}) {$equal = 0}
-				}
-			next if $equal eq 1;
-			next if defined($MutationNext->{prev});
-			next if $MutationNext->{position} - $Mutation->{position} < 0;
-			if ($MutationNext->{position} - $Mutation->{position} < $min) {
-				$min = $MutationNext->{position} - $Mutation->{position};
-				$next = \$MutationNext;
-				}
-			}
-		unless (defined $next) {
-			$Mutation->{next} = undef;
-			} else {
-			$Mutation->{next} = $next;
-			$$next->{prev} = \$Mutation;
-			}
-		}
-	return $mutation;
-	}
-
-sub load_mutations {
-	my $vcf = shift;
-	my $header = shift;
-
-	open (my $vcf_fh, "<$vcf");
-
-	my $mutations = [];
-	while (<$vcf_fh>) {
-		chomp;
-		next if m!#!;
-		my @mas = split/\t/;
-		next unless $mas[1] =~ /^\d+$/;
-		die "Unknown contig name $mas[0] in VCF file. Non-concordant with input BAM file\n" unless defined $header->{$mas[0]};
-		die "Mutation position ($mas[1]) out of contig length for chromosome $mas[0]\n" if $mas[1] > $header->{$mas[0]};
-
-		my $current = {};
-		$current->{contig} = $mas[0];
-		$current->{position} = $mas[1];
-		$current->{ref} = $mas[3];
-		$current->{alt} = $mas[4];
-		$current->{reads} = [];
-		$current->{name} = '.';
-		push (@{$mutations}, $current);
-		}
-	close $vcf_fh;
-
-	if (defined($mutations)) {
-		$mutations = [sort {$a->{position} <=> $b->{position}} @{$mutations}];
-		}
-
-	return $mutations;
-	}	
-
 sub map_mutations_to_segments { # For each segment define which mutations fall within this segment and fill $segment->{mutations} arrays with the corresponding mutation links
 	my $segments	= shift;
 	my $mutations	= shift;
@@ -311,22 +245,23 @@ sub head {
 	my $vcfFile	= $ARGV[2];
 	my $Sample	= Sample->new($inputBam);
 	
-	my $Design = Deign->new;
+	my $Design = Design->new;
 	$Design->loadSeqDic($Sample->header);
 	$Design->loadPanel($panelFile);
-
-	my $mutations		= load_mutations($vcfFile, $Sample->header);
-	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $segments;
-	die "Can not identify genome regions in input BED file ($panelFile)\n" unless defined $ampliconsHash;
+	
+	my $mutations;
+	#my $mutations		= load_mutations($vcfFile, $Sample->header);
 	die "Can not identify mutations in input VCF file ($vcfFile)\n" unless defined $mutations;
-
-	map_mutations_to_segments($segments, $mutations);
+	
+	print Dumper $Design->segments({contig => 'chr22'});
+	exit;
+	#map_mutations_to_segments($segments, $mutations);
 	
 
-	foreach my $seg (@{$segments}) {
+	foreach my $seg (@{$Design->segments}) {
 		next if scalar (@{$seg->{mutations}}) eq 0;
 		print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{mutations}}),"\n";
-		pipeline($Sample->sam, $seg, $ampliconsHash);
+		#pipeline($Sample->sam, $seg, $ampliconsHash);
 		last;
 		}
 	
