@@ -16,7 +16,7 @@ sub new {
 	my $class = shift;
 	my $value = shift;
 	my $self = {};
-	if ($value >= 1) {
+	if (($value >= 1)or($value eq 0)) {
 		$self->{phred} = $value;
 		$self->{probability} = score($value);
 		} else {
@@ -50,7 +50,7 @@ sub score {
 
 sub unscore {
 	my $score	= shift;
-	return int(-10*log($score)/log(10))
+	return (-10*log($score)/log(10))
 	}
 
 

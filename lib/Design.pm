@@ -151,19 +151,21 @@ sub load_amplicons {
 	close $panel_fh;
 	}
 
-sub Sample {
+sub newSample {
 	my $class	= shift;
 	my $bam		= shift;
 	my $Sample = Sample->new($bam);
 	$Sample->{Design} = $class;
+	push (@{$class->{samples}}, $Sample);
 	return $Sample;
 	}
 
-sub add_control {
+sub newControl {
 	my $class	= shift;
 	my $bam		= shift;
-	my $Sample = $class->Sample($bam);
+	my $Sample = $class->newSample($bam);
 	push (@{$class->{controls}}, $Sample);
+	$Sample->set_value('type', 'control');
 	return $Sample;
 	}
 
@@ -172,6 +174,21 @@ sub controls {
 	return $class->{controls};
 	}
 
+sub samples {
+	my $class = shift;
+	return $class->{samples};
+	}
+
+sub Sample {
+	my $class = shift;
+	my $name = shift;
+	foreach my $sample (@{$class->samples}) {
+		next unless defined $sample->{name};
+		next if $sample->{name} ne $name;
+		return $sample;
+		}
+	return undef;
+	}
 
 
 

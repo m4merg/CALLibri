@@ -4,12 +4,17 @@ use strict;
 use warnings;
 use Dir::Self;
 use Allele;
+use Bio::DB::Sam;
 
 use Data::Dumper;
 use Storable 'dclone';
 use List::Util qw(min max);
 use Mojo::Base -base;
 use Try::Tiny;                  #Install
+use Bio::Cigar;                 #Install
+use Score;
+use Cigar;
+
 
 
 our @ISA = qw(Exporter);
@@ -19,11 +24,27 @@ sub new {
 	my $class	= shift;
 	my $bamFile	= shift;
 	my $self = {};
-	$self->{sam} = load_sam($bamFile);
-	$self->{header} = load_header($self->{sam});
+	$self->{bampath} = $bamFile;
 	return (bless $self, $class);
 	}
 
+sub init {
+	my $class = shift;
+	$class->{sam} = load_sam($class->{bampath});
+	$class->{header} = load_header($class->{sam});
+	}
+
+sub get_value {
+   my ( $self, $key ) = @_;
+   return $self->{$key} // 0;
+}
+
+sub set_value {
+   my ( $self, $key, $value ) = @_;
+   $self->{$key} = $value;
+}
+
+	
 sub allele {
 	my $class	= shift;
 	my $alleleName	= shift;
@@ -97,7 +118,7 @@ sub pipeline {
         my $class	= shift;
         my $segment	= shift;
         my $sam = $class->sam;
-
+	
         my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
         return undef unless defined $sam_segment;
         my @all_alignments = $sam_segment->features;
