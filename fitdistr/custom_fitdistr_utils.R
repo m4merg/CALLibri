@@ -1,5 +1,3 @@
-# essentials for custom firdistr to work
-
 start.arg.default <- function(x, distr)
 {
   if (distr == "norm") {
