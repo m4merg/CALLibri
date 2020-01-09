@@ -9,7 +9,7 @@ data_exp <- as.numeric(args[7])
 data <- sort(data[0:length(data)])
 
 fitCustom <- function(data) {
-	gof <- "CvM"
+	gof <- "AD"
 	customFit <- fitdistrplus::fitdist(data, "beta", method="mge", gof=gof)
 	if (is.na(customFit$estimate[[1]])) {
 		gof <- "CvM"
