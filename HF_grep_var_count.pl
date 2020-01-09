@@ -51,6 +51,7 @@ sub head {
 	$Design->init({seqdic => $Sample->header, VCF => $vcfFile, BED => $panelFile});
 	$Design->{config}->{qscore_averaging_range} = $qscore_averaging_range;
 	
+	print STDERR "PIPING\n";
 	foreach my $seg (@{$Design->segments}) {
 		next if scalar (@{$seg->{variations}}) eq 0;
 		#print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{variations}}),"\n";
@@ -67,7 +68,7 @@ sub head {
 						next if $refCount + $altCount <= 0;
 						my $DP = int($refCount + $altCount);
 						my $freq = $altCount/($refCount + $altCount);
-						print "$index\t$amplicon\t$strand\t$BQrange\t$DP\t$refCount\t$altCount\n";
+						print "$index\t$amplicon\t$strand\t$BQrange\t$freq\n";
 						}
 					}
 				}

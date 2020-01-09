@@ -1,4 +1,5 @@
-start.arg.default <- function(x, distr)
+library("modi")
+start.arg.default <- function(x, distr, weights=NULL)
 {
   if (distr == "norm") {
     n <- length(x)
@@ -40,8 +41,9 @@ start.arg.default <- function(x, distr)
     if (any(x < 0) | any(x > 1)) 
       stop("values must be in [0-1] to fit a beta distribution")
     n <- length(x)
-    m <- mean(x)
-    v <- (n - 1)/n*var(x)
+    if (is.null(weights)) {m <- mean(x)} else {m <- weighted.mean(x, weights)}
+    if (is.null(weights)) {v <- var(x)} else {v <- weighted.var(x, weights)}
+    v <- (n - 1)/n*v
     aux <- m*(1-m)/v - 1
     start <- list(shape1=m*aux, shape2=(1-m)*aux)
   }else if (distr == "weibull") {
@@ -142,14 +144,14 @@ start.arg.default <- function(x, distr)
   return(start)
 } 
 
-manageparam <- function(start.arg, fix.arg, obs, distname)
+manageparam <- function(start.arg, fix.arg, obs, distname, weights=NULL)
 {
   #if clause with 3 different cases:
   #start.arg : NULL | named list | a function
   
   if(is.null(start.arg))
   {
-    trystart <- try(start.arg.default(obs, distname), silent = TRUE)
+    trystart <- try(start.arg.default(obs, distname, weights), silent = TRUE)
     if(class(trystart) == "try-error")
     {
       cat("Error in computing default starting values.\n")

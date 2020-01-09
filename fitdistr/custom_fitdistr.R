@@ -58,6 +58,8 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
                       ]
     data <- c(rcens, lcens, ncens, (icens$left + icens$right)/2)
   }
+  cat("START\n")
+  print(start)
   if (!checkstartfix) {
     arg_startfix <- manageparam(start.arg = start, fix.arg = fix.arg, 
                                 obs = data, distname = distname)
@@ -104,10 +106,18 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
         theop <- do.call(pdistnam,c(list(s),as.list(par),as.list(fix.arg)))
         
         err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ) 
+	sum <- 0
+	for(i in 1:n) {
+		element <- (2*i - 1)*log(theop[i])/(2*n) + (1-(2*i-1)/(2*n))*log(1-theop[i])
+		sum <- sum + element
+		if (DEBUG) {cat(sum,":",element," ")}
+		}
+	if(DEBUG) {cat("\n")}
+	err1 <- -n - 2*sum
         if (DEBUG) {
+	  print(par)
+	  print(theop)
           print(err)
-          print(mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ))
-          print(mean( (2 * 1:n - 1) * (log(theop)) + (2 * n - 2 * 1:n + 1) * log(1 - theop)))
         }
         err
       }
@@ -119,10 +129,18 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
                                      as.list(fix.arg)))
         
         #err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) )
-        err <- - sum(weights) - weighted.mean( (2 * 1:n - 1) * (log(theop)) + (2 * sum(weights) - 2*1:n + 1) * log(1 - theop), weights)
+	sum <- 0
+	for(i in 1:n) {
+		element <- (2*i - 1)*log(theop[i])/(2*sum(weights)) + (1-(2*i-1)/(2*sum(weights)))*log(1-theop[i])
+		sum <- sum + weights[i]*element
+		if (DEBUG) {cat(sum,":",weights[i],":",element," - ")}
+		}
+	if(DEBUG) {cat("\n")}
+	err <- sum(weights) - 2*sum
         if (DEBUG) {
+	  print(par)
+	  print(tail(theop))
           print(err)
-          print(weights)
         }
         err
       }
@@ -303,9 +321,12 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
 }
 
 
-fitdist <- function (data, distr, method = c("mge"), start=NULL, 
+fitdistC <- function (data, distr, method = c("mge"), start=NULL, 
                      fix.arg=NULL, discrete, keepdata = TRUE, keepdata.nb=100, weights = NULL, ...) 
 {
+  if (!is.null(weights)) {
+	  weights <- weights*length(weights)/sum(weights)
+  	}
   #check argument distr
   if (!is.character(distr)) 
     distname <- substring(as.character(match.call()$distr), 2)
@@ -351,7 +372,7 @@ fitdist <- function (data, distr, method = c("mge"), start=NULL,
   
   # manage starting/fixed values: may raise errors or return two named list
   arg_startfix <- manageparam(start.arg=start, fix.arg=fix.arg, obs=data, 
-                              distname=distname)
+                              distname=distname, weights=weights)
   
   #check inconsistent parameters
   argddistname <- names(formals(ddistname))
