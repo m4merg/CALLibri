@@ -1,13 +1,8 @@
-source("custom_fitdistr_utils.R")
-
-### overwritten custom fitdistr function
-### same usage as original function
-### gof = "ADW" for weighted AD
-### declare weights as param, if not defined will be used array of 1's
+source("./fitdistr/custom_fitdistr_utils.R")
 
 mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL, 
-          optim.method = "default", lower = -Inf, upper = Inf, custom.optim = NULL, 
-          silent = TRUE, gradient = NULL, checkstartfix = FALSE, weights, ...) 
+                     optim.method = "default", lower = -Inf, upper = Inf, custom.optim = NULL, 
+                     silent = TRUE, gradient = NULL, checkstartfix = FALSE, weights, ...) 
 {
   
   if (!is.character(distr)) 
@@ -102,22 +97,34 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
         max(pmax(abs(theop - obspu), abs(theop - obspl)))
       }
     else if (gof == "AD")
-      fnobj <- function(par, fix.arg, obs, pdistnam)
+      fnobj <- function(par, fix.arg, obs, pdistnam, DEBUG = FALSE)
       { 
         n <- length(obs)
         s <- sort(obs)
         theop <- do.call(pdistnam,c(list(s),as.list(par),as.list(fix.arg)))
-        - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ) 
+        
+        err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ) 
+        if (DEBUG) {
+          print(err)
+          print(mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ))
+          print(mean( (2 * 1:n - 1) * (log(theop)) + (2 * n - 2 * 1:n + 1) * log(1 - theop)))
+        }
+        err
       }
     else if (gof == "ADW") 
-      fnobj <- function(par, fix.arg, obs, pdistnam) {
+      fnobj <- function(par, fix.arg, obs, pdistnam, DEBUG = FALSE) {
         n <- length(obs)
         s <- sort(obs)
         theop <- do.call(pdistnam, c(list(s), as.list(par), 
                                      as.list(fix.arg)))
         
-        -n - weighted.mean((2 * 1:n - 1) * (log(theop) + log(1 - 
-                                                               rev(theop))), weights)
+        #err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) )
+        err <- - sum(weights) - weighted.mean( (2 * 1:n - 1) * (log(theop)) + (2 * sum(weights) - 2*1:n + 1) * log(1 - theop), weights)
+        if (DEBUG) {
+          print(err)
+          print(weights)
+        }
+        err
       }
     else if (gof == "ADR") 
       fnobj <- function(par, fix.arg, obs, pdistnam) {
@@ -289,6 +296,9 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
                 loglik = loglik(opt$par, fix.arg, data, ddistname), 
                 gof = gof)
   }
+  
+  #pars <- list(shape1 = 2.0, shape2 = 1000.0)
+  #print(fnobj(pars, fix.arg, data, 'pbeta', DEBUG = TRUE))
   return(res)
 }
 
@@ -428,7 +438,6 @@ fitdist <- function (data, distr, method = c("mge"), start=NULL,
                     dots = my3dots, convergence = convergence, discrete = discrete, 
                     weights = weights)  
   }
-  
   
   return(structure(reslist, class = "fitdist"))
   
