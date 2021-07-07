@@ -51,7 +51,6 @@ sub head {
 	$Design->init({seqdic => $Sample->header, VCF => $vcfFile, BED => $panelFile});
 	$Design->{config}->{qscore_averaging_range} = $qscore_averaging_range;
 	
-	print STDERR "PIPING\n";
 	foreach my $seg (@{$Design->segments}) {
 		next if scalar (@{$seg->{variations}}) eq 0;
 		#print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{variations}}),"\n";
@@ -60,6 +59,8 @@ sub head {
 			my $index = $CandidateVariation->{index};
 			#next if $CandidateVariation->{position} ne '6529203';
 			#print STDERR (scalar @{$Sample->allele($index)->{reads}}),"\n";
+			my $refCountSum = 0;
+			my $altCountSum = 0;
 			foreach my $amplicon (uniq (map {$_->{amplicon}} @{$Sample->allele($index)->{reads}})) {
 				foreach my $strand (qw(-1 1)) {
 					foreach my $BQrange (qw(0 5 10 15 20 25)) {
@@ -68,10 +69,14 @@ sub head {
 						next if $refCount + $altCount <= 0;
 						my $DP = int($refCount + $altCount);
 						my $freq = $altCount/($refCount + $altCount);
-						print "$index\t$amplicon\t$strand\t$BQrange\t$freq\n";
+						$refCountSum += $refCount;
+						$altCountSum += $altCount;
+						#print "$index\t$amplicon\t$strand\t$BQrange\t$freq\n";
 						}
 					}
 				}
+			my $freq = $altCountSum/($refCountSum + $altCountSum);
+			print "$index\t$freq\n";
 			}
 		}
 	exit;

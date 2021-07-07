@@ -95,6 +95,8 @@ sub load_VarDict {
 sub define_segments { # simple merge BED file
 	my $class = shift;
 	my $inputFile   = shift;
+	my $mergeDist	= shift;
+	$mergeDist = 0 unless defined $mergeDist;
 	open (my $panel_fh, "<$inputFile") or die "Can not open panel file\n";
 
 	my $current_segment;
@@ -114,7 +116,7 @@ sub define_segments { # simple merge BED file
 			}
 		if (($mas[0] eq $current_segment->{contig})
 				and ($mas[1] > $current_segment->{start})
-				and ($mas[1] < $current_segment->{end})) {
+				and ($mas[1] < $current_segment->{end} + $mergeDist)) {
 			if ($mas[2] > $current_segment->{end}) {
 				$current_segment->{end} = $mas[2];
 				} else {

@@ -115,45 +115,94 @@ sub select_amplicon {
         }
 
 sub pipeline {
-        my $class	= shift;
-        my $segment	= shift;
-        my $sam = $class->sam;
+	my $class	= shift;
+	my $segment	= shift;
+	my $sam = $class->sam;
 	
-        my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
-        return undef unless defined $sam_segment;
-        my @all_alignments = $sam_segment->features;
-        foreach my $alignment (@all_alignments) {
-                foreach my $CandidateVariation (@{$segment->{variations}}) {
-                        if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
-                                next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
-                                }
-                        next if $alignment->get_tag_values("UNMAPPED") eq '1';
-                        next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
+	my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
+	return undef unless defined $sam_segment;
+	my @all_alignments = $sam_segment->features;
+	foreach my $alignment (@all_alignments) {
+		foreach my $CandidateVariation (@{$segment->{variations}}) {
+			my $index = $CandidateVariation->{index};
+			#next if $index ne "chr9:135974142C>CG";
+			if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
+				next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
+				}
+			next if $alignment->get_tag_values("UNMAPPED") eq '1';
+			next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
 
-                        my $stat = get_stat($CandidateVariation, $alignment);
-                        next unless defined($stat);
-                        my $qscore = $class->get_qscore($alignment, $stat);
-                        #print "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
-                        my $read;
-                        $read->{name}           = $alignment->qname;
-                        $read->{BQ}             = $qscore;
-                        $read->{strand}         = $alignment->strand;
-                        $read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
-                        if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt}))) {
-                                        $read->{vote} = 'alt';
-                                        $class->allele($CandidateVariation->{index})->add_read($read);
-                                } elsif (((length($stat->{oref}) eq length($CandidateVariation->{ref}))and
-                                        (length($stat->{oalt}) eq length($CandidateVariation->{ref})))or
-                                        (substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}) =~ /^\|*$/)) {
-                                        $read->{vote} = 'ref';
-                                        $class->allele($CandidateVariation->{index})->add_read($read);
-                                        } else {
-                                                #print STDERR substr($stat->{match}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
-                                                #print STDERR $alignment->qname,"\tWHAT?\n";
-                                        }
-                        }
-                }
-        }
+			my $stat = get_stat($CandidateVariation, $alignment);
+			next unless defined($stat);
+			my $qscore = $class->get_qscore($alignment, $stat);
+			#print "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
+			my $read;
+			$read->{name}           = $alignment->qname;
+			$read->{BQ}             = $qscore;
+			$read->{strand}         = $alignment->strand;
+			$read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
+			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt}))) {
+					$read->{vote} = 'alt';
+					$class->allele($CandidateVariation->{index})->add_read($read);
+				} elsif (((length($stat->{oref}) eq length($CandidateVariation->{ref}))and
+					(length($stat->{oalt}) eq length($CandidateVariation->{ref})))or
+					(substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}) =~ /^\|*$/)) {
+					$read->{vote} = 'ref';
+					$class->allele($CandidateVariation->{index})->add_read($read);
+					} else {
+						#print STDERR substr($stat->{match}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
+						#print STDERR $alignment->qname,"\tWHAT?\n";
+					}
+			}
+		}
+	}
+
+sub prep {
+	my $class	= shift;
+	my $segment	= shift;
+	my $sam = $class->sam;
+
+	my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
+	return undef unless defined $sam_segment;
+	my @all_alignments = $sam_segment->features;
+	foreach my $alignment (@all_alignments) {
+		my ($ref,$matches,$query) = $alignment->padded_alignment;
+		print STDERR "$ref\n$matches\n$query\n\n";
+		parse_matches($alignment->start, $alignment->padded_alignment);
+		}
+	}
+
+sub parse_matches {
+	my $position	= shift;
+	my @ref		= split//, shift;
+	my @matches	= split//, shift;
+	my @alt		= split//, shift;
+	my $i = 0;
+	#print STDERR "$position\t@ref\t@matches\t@alt\n";exit;
+	while ($i < scalar @matches) {
+		print STDERR "",$position,":",$ref[$i],":",$alt[$i],"\n";
+		my $vRef = '';
+		my $vAlt = '';
+		if ($matches[$i] eq ' ') {
+			my $j = 0;
+			while ($matches[$i + $j] eq ' ') {
+				last unless defined $ref[$i + $j];
+				last unless defined $alt[$i + $j];
+				$vRef = "$vRef" . $ref[$i + $j];
+				$vAlt = "$vAlt" . $alt[$i + $j];
+				++$j;
+				}
+			print STDERR "$position:$vRef>$vAlt\n";
+			}
+		while (1) {
+			++$position if $ref[$i] ne '-';
+			++$i;
+			last unless defined $matches[$i];
+			last if $matches[$i] eq '|';
+			}
+		}
+	exit;
+	}
 
 sub get_stat { # see pipeline function
         my $Mutation = shift;

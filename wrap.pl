@@ -23,8 +23,8 @@ sub worker {
 		my $vcf		= $passed->[2];
 		my $seed	= $passed->[3];
 		print STDERR "Started $bam\n";
-		my $cmd = "perl HF_grep_var_count.pl $bam $panel $vcf > temp/$seed";
-		print STDERR "$cmd\n";
+		my $cmd = "perl HF_grep_var_count.pl $bam $panel $vcf > test/$seed";
+		#print STDERR "$cmd\n";
 		`$cmd`;
 		}
 	}
@@ -39,7 +39,7 @@ while (<READ>) {
 	next if m!^#!;
 	my $bam = $_;
 	my $panel = 'CCP.bed';
-	my $vcf = '81485-01-01.vcf';
+	my $vcf = 'test.vcf';
 	my $seed = int(rand(999999999999999));
 	$seed = "control_N$seed";
 	$work_q->enqueue( [$bam, $panel, $vcf, $seed] );

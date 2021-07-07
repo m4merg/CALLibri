@@ -108,7 +108,9 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
         err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) ) 
 	sum <- 0
 	for(i in 1:n) {
-		element <- (2*i - 1)*log(theop[i])/(2*n) + (1-(2*i-1)/(2*n))*log(1-theop[i])
+		i1 <- i + 0
+		n1 <- n + 0
+		element <- (2*i1 - 1)*log(theop[i])/(2*n1) + (1-(2*i1-1)/(2*n1))*log(1-theop[i])
 		sum <- sum + element
 		if (DEBUG) {cat(sum,":",element," ")}
 		}
@@ -118,8 +120,9 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
 	  print(par)
 	  print(theop)
           print(err)
+	  print(err1)
         }
-        err
+        err1
       }
     else if (gof == "ADW") 
       fnobj <- function(par, fix.arg, obs, pdistnam, DEBUG = FALSE) {
@@ -130,13 +133,16 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
         
         #err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) )
 	sum <- 0
+	sumw <- 0
 	for(i in 1:n) {
-		element <- (2*i - 1)*log(theop[i])/(2*sum(weights)) + (1-(2*i-1)/(2*sum(weights)))*log(1-theop[i])
+		sumw <- sumw + weights[i]
+		if((!is.na(theop[i]))&(theop[i] > 0.9999999999999999)) {theop[i] <- 0.9999999999999999}
+		element <- (2*n*sumw - 1)*log(theop[i])/(2*n) + (1-(2*n*sumw-1)/(2*n))*log(1-theop[i])
 		sum <- sum + weights[i]*element
-		if (DEBUG) {cat(sum,":",weights[i],":",element," - ")}
+		if ((DEBUG)&(i > 68)) {cat(sum,":",weights[i],":",element,"|")}
 		}
 	if(DEBUG) {cat("\n")}
-	err <- sum(weights) - 2*sum
+	err <- -n - 2*sum
         if (DEBUG) {
 	  print(par)
 	  print(tail(theop))
@@ -325,7 +331,7 @@ fitdistC <- function (data, distr, method = c("mge"), start=NULL,
                      fix.arg=NULL, discrete, keepdata = TRUE, keepdata.nb=100, weights = NULL, ...) 
 {
   if (!is.null(weights)) {
-	  weights <- weights*length(weights)/sum(weights)
+	  weights <- weights/sum(weights)
   	}
   #check argument distr
   if (!is.character(distr)) 
