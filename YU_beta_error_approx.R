@@ -1,8 +1,20 @@
+# execusion:
+# R --slave -f <path to script> --args <path to fitdistr> <path to input file>
+# example: 
+# $ R --slave -f /home/onco-admin/RnD/UEBAcall/YU_beta_error_approx.R --args /home/onco-admin/RnD/UEBAcall/fitdistr/ /home/onco-admin/RnD/UEBAcall/test/indexdata_N397206687986727744
+library("modi")
+args <- commandArgs()
+setwd(args[6])
+source("custom_fitdistr.R")
+suppressMessages(library("modi"))
+suppressMessages(library("fitdistrplus"))
+q()
+data <- read.table(file = args[7], sep = '\t', header = FALSE)
+
 pval <- 0.000000001
 baselineDataFraction <- 0.6
 
-suppressMessages(library("fitdistrplus"))
-args <- commandArgs()
+data <- read.table(file = args[7], sep = '\t', header = FALSE)
 inputFile <-args[6];
 data <- as.numeric(scan(inputFile, what="", sep="\n", quiet=TRUE))
 data_exp <- as.numeric(args[7])

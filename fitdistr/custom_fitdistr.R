@@ -1,4 +1,4 @@
-source("./fitdistr/custom_fitdistr_utils.R")
+source("custom_fitdistr_utils.R")
 
 mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL, 
                      optim.method = "default", lower = -Inf, upper = Inf, custom.optim = NULL, 

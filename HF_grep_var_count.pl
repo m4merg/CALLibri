@@ -50,6 +50,7 @@ sub head {
 	$Sample->init();
 	$Design->init({seqdic => $Sample->header, VCF => $vcfFile, BED => $panelFile});
 	$Design->{config}->{qscore_averaging_range} = $qscore_averaging_range;
+	$Sample->normalizeBQ();
 	
 	foreach my $seg (@{$Design->segments}) {
 		next if scalar (@{$seg->{variations}}) eq 0;
@@ -59,24 +60,18 @@ sub head {
 			my $index = $CandidateVariation->{index};
 			#next if $CandidateVariation->{position} ne '6529203';
 			#print STDERR (scalar @{$Sample->allele($index)->{reads}}),"\n";
-			my $refCountSum = 0;
-			my $altCountSum = 0;
 			foreach my $amplicon (uniq (map {$_->{amplicon}} @{$Sample->allele($index)->{reads}})) {
 				foreach my $strand (qw(-1 1)) {
-					foreach my $BQrange (qw(0 5 10 15 20 25)) {
-						my $refCount = $Sample->allele($index)->readCount({vote => 'ref', strand => $strand, amplicon => $amplicon, BQ => Score->new($BQrange)->prob});
-						my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon, BQ => Score->new($BQrange)->prob});
-						next if $refCount + $altCount <= 0;
-						my $DP = int($refCount + $altCount);
-						my $freq = $altCount/($refCount + $altCount);
-						$refCountSum += $refCount;
-						$altCountSum += $altCount;
-						#print "$index\t$amplicon\t$strand\t$BQrange\t$freq\n";
-						}
+					#my $refCount = $Sample->allele($index)->readCount({vote => 'ref', strand => $strand, amplicon => $amplicon});
+					my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon});
+					my $DP = scalar (grep {($_->{amplicon} eq $amplicon)and($_->{strand} eq $strand)} @{$Sample->allele($index)->{reads}});
+					#next if $refCount + $altCount <= 0;
+					#print STDERR Dumper $Sample->allele($index);
+					print "$index\t$amplicon\t$strand\t$altCount\t$DP\n";
 					}
 				}
-			my $freq = $altCountSum/($refCountSum + $altCountSum);
-			print "$index\t$freq\n";
+			#my $freq = $altCountSum/($refCountSum + $altCountSum);
+			#print "$index\t$freq\n";
 			}
 		}
 	exit;

@@ -263,6 +263,7 @@ checkparamlist <- function(start.arg, fix.arg, argdistname, hasnodefaultval)
   if (any(is.na(m))) 
     stop(errtxt$t3)
   #check NA/NaN values
+  cat(vstart)
   if(any(is.na(vstart) || is.nan(vstart)))
     stop(errtxt$t6)
   if(!is.null(fix.arg))

@@ -14,8 +14,9 @@ use Try::Tiny;                  #Install
 use Bio::Cigar;                 #Install
 use Score;
 use Cigar;
+use List::Util qw/shuffle/;
 
-
+my $string_edit_calc = __DIR__ . "/lev.py";
 
 our @ISA = qw(Exporter);
 our @EXPORT     = qw//;
@@ -32,6 +33,48 @@ sub init {
 	my $class = shift;
 	$class->{sam} = load_sam($class->{bampath});
 	$class->{header} = load_header($class->{sam});
+	$class->{BQRange}->{0} = '0-5';
+	$class->{BQRange}->{1} = '0-5';
+	$class->{BQRange}->{2} = '0-5';
+	$class->{BQRange}->{3} = '0-5';
+	$class->{BQRange}->{4} = '0-5';
+	$class->{BQRange}->{5} = '0-5';
+	$class->{BQRange}->{6} = '6-10';
+	$class->{BQRange}->{7} = '6-10';
+	$class->{BQRange}->{8} = '6-10';
+	$class->{BQRange}->{9} = '6-10';
+	$class->{BQRange}->{10} = '6-10';
+	$class->{BQRange}->{11} = '11-15';
+	$class->{BQRange}->{12} = '11-15';
+	$class->{BQRange}->{13} = '11-15';
+	$class->{BQRange}->{14} = '11-15';
+	$class->{BQRange}->{15} = '11-15';
+	$class->{BQRange}->{16} = '16-20';
+	$class->{BQRange}->{17} = '16-20';
+	$class->{BQRange}->{18} = '16-20';
+	$class->{BQRange}->{19} = '16-20';
+	$class->{BQRange}->{20} = '16-20';
+	$class->{BQRange}->{21} = '21-25';
+	$class->{BQRange}->{22} = '21-25';
+	$class->{BQRange}->{23} = '21-25';
+	$class->{BQRange}->{24} = '21-25';
+	$class->{BQRange}->{25} = '21-25';
+	$class->{BQRange}->{26} = '26-30';
+	$class->{BQRange}->{27} = '26-30';
+	$class->{BQRange}->{28} = '26-30';
+	$class->{BQRange}->{29} = '26-30';
+	$class->{BQRange}->{30} = '26-30';
+	$class->{BQRange}->{31} = '31-35';
+	$class->{BQRange}->{32} = '31-35';
+	$class->{BQRange}->{33} = '31-35';
+	$class->{BQRange}->{34} = '31-35';
+	$class->{BQRange}->{35} = '31-35';
+	foreach my $BQ (36 .. 100) {
+		$class->{BQRange}->{$BQ} = '36-100';
+		}
+	
+
+
 	}
 
 sub get_value {
@@ -58,7 +101,26 @@ sub allele {
 		$class->{allele} = {};
 		$class->{allele}->{$alleleName} = Allele->new($class);
 		}
+	$class->{allele}->{$alleleName}->{Sample} = $class;
+	$class->{allele}->{$alleleName}->{alleleName} = $alleleName;
+	if ($alleleName =~ /(\S+):(\d+)(\S+)>(\S+)/) {
+		$class->{allele}->{$alleleName}->{refA} = $3;
+		$class->{allele}->{$alleleName}->{altA} = $4;
+		$class->{allele}->{$alleleName}->{edit_ops_forw} = edit_ops($3, $4);
+		$class->{allele}->{$alleleName}->{edit_ops_rev} = edit_ops($4, $3);
+		}
 	return $class->{allele}->{$alleleName};
+	}
+
+sub edit_ops {
+	my $str1 = shift;
+	my $str2 = shift;
+	my $edit_ops = `python $string_edit_calc $str1 $str2`;
+	chomp $edit_ops;
+	$edit_ops = [split/\n/, $edit_ops];
+	my $result = [];
+	map {if ($_ =~ /(\S+)>(\S+)/) {push @{$result}, [$1, $2]}} @{$edit_ops};
+	return $result;
 	}
 
 sub load_header {
@@ -114,6 +176,66 @@ sub select_amplicon {
         return $name;
         }
 
+sub normalizeBQ {
+	my $class	= shift;
+	my $sam = $class->sam;
+	my $Design = $class->Design;
+	my $alignmentCountMax = 100000;
+	my $NCount;
+	my $BQMatrix;
+	my $sumScore = 0;
+	BQOUTER: foreach my $segment (shuffle @{$class->Design->segments}) {
+		my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
+		my @all_alignments = $sam_segment->features;
+		foreach my $alignment (@all_alignments) {
+			if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
+				next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
+				}
+			next if $alignment->get_tag_values("UNMAPPED") eq '1';
+			next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
+			#print STDERR "",$alignment->qname,"\n";
+			#next unless $alignment->qname eq 'KOVMX:09610:14033';
+			my ($ref, $match, $query) = $alignment->padded_alignment;
+			$ref =~ s/(-+)$/"_" x length($1)/e;
+			$ref =~ s/^(-+)/"_" x length($1)/e;
+			$query =~ s/(-+)$/"_" x length($1)/e;
+			$query =~ s/^(-+)/"_" x length($1)/e;
+			$ref = [split//, $ref];
+			$match = [split//, $match];
+			$query = [split//,$query];
+			my @scores = @{$alignment->qscore};
+			my $scoresPos = 0;
+			for (my $i = 0; $i < scalar (@{$match}); $i++) {
+				#print STDERR "",$ref->[$i],"",$match->[$i],"",$query->[$i]," ",$scores[$scoresPos],"\n";
+				#next if $ref->[$i] eq '-';
+				#next if $query->[$i] eq '-';
+				next if $ref->[$i] eq 'N';
+				next if $query->[$i] eq 'N';
+				next if $ref->[$i] eq '_';
+				next if $query->[$i] eq '_';
+				$NCount->{$ref->[$i]} += 1;
+				next if $ref->[$i] eq $query->[$i];
+				$BQMatrix->{"".$ref->[$i].">".$query->[$i].""} += 1;
+				$scoresPos += 1 unless $query->[$i] eq '-';
+				}
+			$alignmentCountMax -= 1;
+			#print STDERR "$alignmentCountMax\n";
+			last BQOUTER if $alignmentCountMax < 0;
+			#if ($alignmentCountMax < 0) {
+			#	foreach my $key (keys %{$BQMatrix}) {
+			#		$alignmentCountMax += 10000 if $BQMatrix->{$key} < 30;
+			#		last if $BQMatrix->{$key} < 30;
+			#		}
+			#	last BQOUTER if $alignmentCountMax < 0;
+			#	}
+			}
+		}
+	#print STDERR Dumper $NCount;
+	#print STDERR Dumper $BQMatrix;
+	$class->{BQMatrix} = $BQMatrix;
+	$class->{NCount} = $NCount;
+	}
+
 sub pipeline {
 	my $class	= shift;
 	my $segment	= shift;
@@ -131,7 +253,8 @@ sub pipeline {
 				}
 			next if $alignment->get_tag_values("UNMAPPED") eq '1';
 			next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
-
+			
+			#next unless $alignment->qname eq 'KOVMX:06284:00256';
 			my $stat = get_stat($CandidateVariation, $alignment);
 			next unless defined($stat);
 			my $qscore = $class->get_qscore($alignment, $stat);
@@ -141,6 +264,7 @@ sub pipeline {
 			$read->{BQ}             = $qscore;
 			$read->{strand}         = $alignment->strand;
 			$read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
+
 			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt}))) {
 					$read->{vote} = 'alt';
 					$class->allele($CandidateVariation->{index})->add_read($read);
@@ -150,7 +274,9 @@ sub pipeline {
 					$read->{vote} = 'ref';
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					} else {
+						#print STDERR substr($stat->{ref}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
 						#print STDERR substr($stat->{match}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
+						#print STDERR substr($stat->{query}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
 						#print STDERR $alignment->qname,"\tWHAT?\n";
 					}
 			}
@@ -167,7 +293,6 @@ sub prep {
 	my @all_alignments = $sam_segment->features;
 	foreach my $alignment (@all_alignments) {
 		my ($ref,$matches,$query) = $alignment->padded_alignment;
-		print STDERR "$ref\n$matches\n$query\n\n";
 		parse_matches($alignment->start, $alignment->padded_alignment);
 		}
 	}
@@ -180,7 +305,6 @@ sub parse_matches {
 	my $i = 0;
 	#print STDERR "$position\t@ref\t@matches\t@alt\n";exit;
 	while ($i < scalar @matches) {
-		print STDERR "",$position,":",$ref[$i],":",$alt[$i],"\n";
 		my $vRef = '';
 		my $vAlt = '';
 		if ($matches[$i] eq ' ') {
@@ -192,7 +316,6 @@ sub parse_matches {
 				$vAlt = "$vAlt" . $alt[$i + $j];
 				++$j;
 				}
-			print STDERR "$position:$vRef>$vAlt\n";
 			}
 		while (1) {
 			++$position if $ref[$i] ne '-';
@@ -218,7 +341,8 @@ sub get_stat { # see pipeline function
         return undef if ($rps) > ($rpe);
 
         my ($ref, $match, $query) = $alignment->padded_alignment;
-
+	
+	#print STDERR "$ref\n$match\n$query\n";
         my $ts = $ref; $ts =~ s/-//g;
         return undef if ($rpe) > length($ts);
 
@@ -228,6 +352,7 @@ sub get_stat { # see pipeline function
         $qpe = $qps + length($Mutation->{alt});
         return undef if $qpe < 0;
         return undef if $qps < 0;
+	#print STDERR "",$alignment->cigar_str,"\n$rps\n",$cigar->get_shift($rps),"\n";
         $aps = $rps + $cigar->get_shift($rps);
         $ape = $aps + max(length($Mutation->{alt}),length($Mutation->{ref}));
         my $stat;
@@ -241,6 +366,8 @@ sub get_stat { # see pipeline function
         $stat->{oalt} =~ s/-//g;
 
         $stat->{match} = $match;
+	$stat->{ref} = $ref;
+	$stat->{query} = $query;
         $stat->{aps} = $aps; $stat->{ape} = $ape;
         $stat->{qps} = $qps; $stat->{qpe} = $qpe;
 

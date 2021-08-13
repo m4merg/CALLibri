@@ -1,7 +1,10 @@
 args <- commandArgs()
-countAlt <- as.integer(args[6]);
-countAll <- as.integer(args[7]);
-alpha <- as.double(args[8]);
+countAlt <- as.numeric(args[6]);
+countAll <- as.numeric(args[7]);
+alpha <- as.numeric(args[8]);
+if (countAlt == 0) {
+	countAlt = 1;
+	}
 f_step <- (countAlt/countAll)/100;
 step <- 0;
 lower <- -1;

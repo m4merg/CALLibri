@@ -20,6 +20,7 @@ sub get_shift {
 			my $letter = $2;
 			if ( ( $letter eq "S" ) or ( $letter eq "I" ) ) {
 				++$count_cigar;
+				++$n;
 				}
 			if ( $number eq "0" ) {
 				$cigar =~ s/^\d+\D//;
