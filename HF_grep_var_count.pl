@@ -51,8 +51,8 @@ sub head {
 	$Design->init({seqdic => $Sample->header, VCF => $vcfFile, BED => $panelFile});
 	$Design->{config}->{qscore_averaging_range} = $qscore_averaging_range;
 	$Sample->normalizeBQ();
-	
 	foreach my $seg (@{$Design->segments}) {
+		#print STDERR Dumper $seg;
 		next if scalar (@{$seg->{variations}}) eq 0;
 		#print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{variations}}),"\n";
 		$Sample->pipeline($seg);
@@ -76,17 +76,6 @@ sub head {
 		}
 	exit;
 	}
-
-
-
-
-
-
-
-
-
-
-
 
 
 

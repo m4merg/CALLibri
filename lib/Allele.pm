@@ -97,12 +97,13 @@ sub error_prob {
 		my $nominator = $class->Sample->{BQMatrix}->{$OP->[0].">".$OP->[1]};
 		my $denominator;
 		if (($OP->[0] eq '-')or($OP->[1] eq '-')) {
-			$denominator = sum(@{$class->Sample->{NCount}})
+			$denominator = sum values %{$class->Sample->{NCount}};
 			} else {
 			$denominator = $class->Sample->{NCount}->{$OP->[0]};
 			}
 		#print STDERR "$nominator\t$denominator\n";
 		$prob = $prob * $nominator / $denominator;
+		last if $prob < 0.00001;
 		}
 	return $prob;
 	}

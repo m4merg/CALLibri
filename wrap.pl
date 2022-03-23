@@ -11,6 +11,16 @@ use threads;
 use Storable qw ( freeze thaw );
 use Thread::Queue;
 
+my $current_dir = __DIR__;
+my $test_folder = "$current_dir/test";
+my $log_file = "$test_folder/log";
+my $list_control = $ARGV[0]; # bamListRef
+my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/81485-01-01.bam
+my $input_panel = $ARGV[2]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
+my $input_vcf = $ARGV[3]; # test.vcf
+
+open (my $log_fh, ">$log_file");
+
 my $qscore_averaging_range      = 1; # Phred quality score is average in this window/ This value defines half of the window length.
 my $minimum_coverage = 2; # Positions with coverage lower this value will be ignored (defined as non-detectable)
 
@@ -23,16 +33,15 @@ sub worker {
 		my $vcf		= $passed->[2];
 		my $seed	= $passed->[3];
 		#$bam = "/home/onco-admin/RnD/UEBAcall/81485-01-01.bam";
-		print STDERR "Started $bam\n";
-		my $cmd = "perl HF_grep_var_count.pl $bam $panel $vcf > test/$seed";
-		#print STDERR "$cmd\n";
+		print $log_fh "Started $bam\n";
+		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf > test/$seed";
 		`$cmd`;
 		}
 	}
 
 threads->create( \&worker ) for 1 .. 13;
 
-open (READ, "<bamListRef");
+open (READ, "<$list_control");
 
 my $n = 0;
 my @control;
@@ -40,8 +49,8 @@ while (<READ>) {
 	chomp;
 	next if m!^#!;
 	my $bam = $_;
-	my $panel = 'CCP.bed';
-	my $vcf = 'test.vcf';
+	my $panel = $input_panel;
+	my $vcf = $input_vcf;
 	my $seed = int(rand(999999999999999999));
 	$seed = "control_N$seed";
 	push(@control, $seed);
@@ -50,12 +59,11 @@ while (<READ>) {
 
 close READ;
 
-my $panel = 'CCP.bed';
-my $vcf = 'test.vcf';
+my $panel = $input_panel;
+my $vcf = $input_vcf;
 my $sampleSeed = int(rand(999999999999999999));
 $sampleSeed = "sample_N$sampleSeed";
-my $bam = "/home/onco-admin/RnD/UEBAcall/81485-01-01.bam";
-$work_q->enqueue( [$bam, $panel, $vcf, $sampleSeed] );
+$work_q->enqueue( [$sample_bam, $panel, $vcf, $sampleSeed] );
 
 $work_q->end;
 $_->join for threads->list;
@@ -66,7 +74,7 @@ $_->join for threads->list;
 
 my $controlData = [];
 foreach my $cFile (@control) {
-	open (CFILEINPUT, "<test/$cFile");
+	open (CFILEINPUT, "<$test_folder/$cFile");
 	while (<CFILEINPUT>) {
 		chomp;
 		my @mas = split/\t/;
@@ -77,7 +85,8 @@ foreach my $cFile (@control) {
 		$data->{strand} = $mas[2];
 		$data->{altCnt} = $mas[3];
 		$data->{depth} = $mas[4];
-		my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
+		#my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
+		my $weight = log($mas[3] + 2.7183)*log($mas[4] + 2.7183)*log($mas[4] + 2.7183);
 		chomp $weight;
 		$data->{weight} = $weight;
 		push @{$controlData}, $data;
@@ -85,7 +94,7 @@ foreach my $cFile (@control) {
 	close CFILEINPUT;
 	}
 
-open (CFILEINPUT, "<test/$sampleSeed");
+open (CFILEINPUT, "<$test_folder/$sampleSeed");
 
 my $sampleData = [];
 while (<CFILEINPUT>) {
@@ -98,7 +107,8 @@ while (<CFILEINPUT>) {
 	$data->{strand} = $mas[2];
 	$data->{altCnt} = $mas[3];
 	$data->{depth} = $mas[4];
-	my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
+	#my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
+	my $weight = log($mas[3] + 2.7183)*log($mas[4] + 2.7183)*log($mas[4] + 2.7183);
 	chomp $weight;
 	$data->{weight} = $weight;
 	push @{$sampleData}, $data;
@@ -108,7 +118,7 @@ close CFILEINPUT;
 
 # Creating input for R scripts - generating noize functions
 
-open (SAMPLEINPUT, "<test/$sampleSeed");
+open (SAMPLEINPUT, "<$test_folder/$sampleSeed");
 
 while (<SAMPLEINPUT>) {
 	chomp;
@@ -119,11 +129,12 @@ while (<SAMPLEINPUT>) {
 	my @data = grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$controlData};
 	my $seed = int(rand(999999999999999999));
 	$seed = "indexdata_N$seed";
-	open (SAMPLEOUTPUT, ">test/$seed");
+	open (SAMPLEOUTPUT, ">$test_folder/$seed");
 	
 	foreach my $arg (@data) {
 		print SAMPLEOUTPUT "",$arg->{altCnt},"\t",$arg->{depth},"\t",$arg->{weight},"\n";
 		}
+	print $log_fh `R --slave -f $current_dir/`;
 	
 	close SAMPLEOUTPUT;
 	}

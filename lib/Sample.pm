@@ -247,6 +247,7 @@ sub pipeline {
 	foreach my $alignment (@all_alignments) {
 		foreach my $CandidateVariation (@{$segment->{variations}}) {
 			my $index = $CandidateVariation->{index};
+			#print STDERR "$index\n";
 			#next if $index ne "chr9:135974142C>CG";
 			if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
 				next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
@@ -256,6 +257,7 @@ sub pipeline {
 			
 			#next unless $alignment->qname eq 'KOVMX:06284:00256';
 			my $stat = get_stat($CandidateVariation, $alignment);
+			#print STDERR Dumper $stat;
 			next unless defined($stat);
 			my $qscore = $class->get_qscore($alignment, $stat);
 			#print "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
