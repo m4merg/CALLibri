@@ -15,6 +15,7 @@ use Thread::Queue;
 my $current_dir = __DIR__;
 my $test_folder = "$current_dir/test";
 my $log_file = "$test_folder/log";
+my $n_threads = 13;
 my $list_control = $ARGV[0]; # bamListHRDRef
 my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/5099.bam
 my $input_panel = $ARGV[2]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
@@ -53,11 +54,12 @@ sub worker_YU {
 		my $ADobs	= $passed->[1];
 		my $DPobs	= $passed->[2];
 		print $log_fh "Started YU $seed\n";
-		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/indexdata_$seed 1 $ADobs $DPobs > $test_folder/indexresult_$seed";
+		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 $ADobs $DPobs > $test_folder/YU_result_$seed";
+		`$cmd`;
 		}
 	}
 
-threads->create( \&worker_HF ) for 1 .. 13;
+threads->create( \&worker_HF ) for 1 .. $n_threads;
 
 open (READ, "<$list_control");
 
@@ -69,7 +71,7 @@ while (<READ>) {
 	my $bam = $_;
 	my $panel = $input_panel;
 	my $vcf = $input_vcf;
-	my $seed = generate_seeq();
+	my $seed = generate_seed();
 	$seed = "control_N$seed";
 	push(@control, $seed);
 	$work_HF->enqueue( [$bam, $panel, $vcf, $seed] );
@@ -140,6 +142,9 @@ close CFILEINPUT;
 open (SAMPLEINPUT, "<$test_folder/$sampleSeed");
 
 my $pval = {};
+threads->create( \&worker_YU ) for 1 .. $n_threads;
+
+my %YU_result;
 while (<SAMPLEINPUT>) {
 	chomp;
 	my @mas = split/\t/;
@@ -151,25 +156,40 @@ while (<SAMPLEINPUT>) {
 	my $DPobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'depth'};
 	#print $log_file "$amplicon\t$index\t$strand\t$ADobs\n";
 	my @data = grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$controlData};
-	my $seed = int(rand(999999999999999999999));
-	$seed = "indexdata_N$seed";
+	my $seed = generate_seed();
 	print $log_fh "$seed\n";
-	open (SAMPLEOUTPUT, ">$test_folder/$seed");
+	open (SAMPLEOUTPUT, ">$test_folder/YU_data_$seed");
 	
 	foreach my $arg (@data) {
 		print SAMPLEOUTPUT "",$arg->{altCnt},"\t",$arg->{depth},"\t",$arg->{weight},"\n";
 		}
-	print $log_fh `R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/$seed 1 $ADobs $DPobs`;
-	my $p = `tail -n1 $log_file`;
-	chomp $p;
-	$pval->{$index} = [] unless defined $pval->{$index};
-	push @{($pval->{$index})}, $p;
-	print $log_fh "$index - $amplicon - $strand - $p\n";
 	
 	close SAMPLEOUTPUT;
+	
+	$work_YU->enqueue( [$seed, $ADobs, $DPobs] );
+	$YU_result{$index} = [] unless defined $YU_result{$index};
+	push @{$YU_result{$index}}, {'amplicon' => $amplicon, 
+					'index' => $index,
+					'strand' => $strand,
+					'seed' => $seed,
+					'ADobs' => $ADobs,
+					'DPobs' => $DPobs};
+	#print $log_fh `R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/$seed 1 $ADobs $DPobs`;
+	#my $p = `tail -n1 $log_file`;
+	#chomp $p;
+	#$pval->{$index} = [] unless defined $pval->{$index};
+	#push @{($pval->{$index})}, $p;
+	#print $log_fh "$index - $amplicon - $strand - $p\n";
+	
 	}
 
 close SAMPLEINPUT;
+
+$work_YU->end;
+$_->join for threads->list;
+print STDERR Dumper \%YU_result;
+
+exit();
 
 foreach my $index (keys %{$pval}) {
 	my $p = join(' ', (sort {$a <=> $b} @{$pval->{$index}}));
