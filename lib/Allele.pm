@@ -94,16 +94,38 @@ sub error_prob {
 	my $type  = shift;
 	my $prob  = 1;
 	foreach my $OP (@{$class->{$type}}) {
-		my $nominator = $class->Sample->{BQMatrix}->{$OP->[0].">".$OP->[1]};
+		#print STDERR "",$class->Sample->{bampath},"\n";
+		#print STDERR "",$OP->[0],"",$OP->[1],"\n";
+		#print STDERR Dumper $class->Sample->{BQMatrix};
+		my $nominator;
 		my $denominator;
+		$nominator = $class->Sample->{BQMatrix}->{$OP->[0].">".$OP->[1]};
 		if (($OP->[0] eq '-')or($OP->[1] eq '-')) {
 			$denominator = sum values %{$class->Sample->{NCount}};
 			} else {
 			$denominator = $class->Sample->{NCount}->{$OP->[0]};
 			}
 		#print STDERR "$nominator\t$denominator\n";
+		if ((defined($denominator))and(not(defined($nominator)))) {
+			$nominator = int($denominator/1000) if $denominator > 1000;
+			$nominator = 1 if $denominator > 5;
+			unless (defined($nominator)) {
+				$nominator = 1;
+				$denominator = 1000;
+				}
+			}
+		unless ($nominator and $denominator) {
+			$nominator = 1;
+			$denominator = 1000;
+			}
+		if ($nominator > $denominator) {
+			$nominator = 1;
+			$denominator = 1000;
+			}
 		$prob = $prob * $nominator / $denominator;
-		last if $prob < 0.00001;
+		while ($prob < 0.000001) {
+			$prob = $prob * 10;
+			}
 		}
 	return $prob;
 	}
