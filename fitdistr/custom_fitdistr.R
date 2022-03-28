@@ -4,7 +4,6 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
                      optim.method = "default", lower = -Inf, upper = Inf, custom.optim = NULL, 
                      silent = TRUE, gradient = NULL, checkstartfix = FALSE, weights, ...) 
 {
-  
   if (!is.character(distr)) 
     stop("distr must be a character string naming a distribution")
   else distname <- distr
@@ -58,8 +57,8 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
                       ]
     data <- c(rcens, lcens, ncens, (icens$left + icens$right)/2)
   }
-  cat("START\n")
-  print(start)
+  #if (DEBUG) {cat("START\n")}
+  #print(start)
   if (!checkstartfix) {
     arg_startfix <- manageparam(start.arg = start, fix.arg = fix.arg, 
                                 obs = data, distname = distname)
@@ -112,15 +111,19 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
 		n1 <- n + 0
 		element <- (2*i1 - 1)*log(theop[i])/(2*n1) + (1-(2*i1-1)/(2*n1))*log(1-theop[i])
 		sum <- sum + element
-		if (DEBUG) {cat(sum,":",element," ")}
+		if (DEBUG) {
+			#cat(sum,":",element," ")
+			}
 		}
-	if(DEBUG) {cat("\n")}
+	if(DEBUG) {
+		#cat("\n")
+		}
 	err1 <- -n - 2*sum
         if (DEBUG) {
-	  print(par)
-	  print(theop)
-          print(err)
-	  print(err1)
+	  #print(par)
+	  #print(theop)
+          #print(err)
+	  #print(err1)
         }
         err1
       }
@@ -130,7 +133,6 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
         s <- sort(obs)
         theop <- do.call(pdistnam, c(list(s), as.list(par), 
                                      as.list(fix.arg)))
-        
         #err <- - n - mean( (2 * 1:n - 1) * (log(theop) + log(1 - rev(theop))) )
 	sum <- 0
 	sumw <- 0
@@ -139,14 +141,18 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
 		if((!is.na(theop[i]))&(theop[i] > 0.9999999999999999)) {theop[i] <- 0.9999999999999999}
 		element <- (2*n*sumw - 1)*log(theop[i])/(2*n) + (1-(2*n*sumw-1)/(2*n))*log(1-theop[i])
 		sum <- sum + weights[i]*element
-		if ((DEBUG)&(i > 68)) {cat(sum,":",weights[i],":",element,"|")}
+		if ((DEBUG)&(i > 68)) {
+			cat(sum,":",weights[i],":",element,"|","\n")
+			}
 		}
-	if(DEBUG) {cat("\n")}
+	if(DEBUG) {
+		#cat("\n")
+		}
 	err <- -n - 2*sum
         if (DEBUG) {
-	  print(par)
-	  print(tail(theop))
-          print(err)
+	  #print(par)
+	  #print(tail(theop))
+          #print(err)
         }
         err
       }
@@ -273,7 +279,7 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
     if (inherits(opttryerror, "try-error")) {
       warnings("The function optim encountered an error and stopped.")
       if (getOption("show.error.messages")) 
-        print(attr(opttryerror, "condition"))
+        #print(attr(opttryerror, "condition"))
       return(list(estimate = rep(NA, length(vstart)), 
                   convergence = 100, loglik = NA, hessian = NA))
     }
@@ -301,7 +307,7 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
     if (inherits(opttryerror, "try-error")) {
       warnings("The customized optimization function encountered an error and stopped.")
       if (getOption("show.error.messages")) 
-        print(attr(opttryerror, "condition"))
+        #print(attr(opttryerror, "condition"))
       return(list(estimate = rep(NA, length(vstart)), 
                   convergence = 100, value = NA, hessian = NA))
     }
@@ -330,6 +336,7 @@ mgedist <- function (data, distr, gof = "CvM", start = NULL, fix.arg = NULL,
 fitdistC <- function (data, distr, method = c("mge"), start=NULL, 
                      fix.arg=NULL, discrete, keepdata = TRUE, keepdata.nb=100, weights = NULL, ...) 
 {
+  #print(weights)
   if (!is.null(weights)) {
 	  weights <- weights/sum(weights)
   	}
@@ -341,7 +348,6 @@ fitdistC <- function (data, distr, method = c("mge"), start=NULL,
   ddistname <- paste("d", distname, sep="")
   if (!exists(ddistname, mode="function"))
     stop(paste("The ", ddistname, " function must be defined"))
-  
   #pdistname <- paste("p", distname, sep="")
   #if (!exists(pdistname, mode="function"))
   #    stop(paste("The ", pdistname, " function must be defined"))
@@ -360,7 +366,6 @@ fitdistC <- function (data, distr, method = c("mge"), start=NULL,
   #check argument method
   if(any(method == "mom"))
     warning("the name \"mom\" for matching moments is NO MORE used and is replaced by \"mme\"")
-  
   method <- match.arg(method, c("mle", "mme", "qme", "mge"))
   if(method %in% c("mle", "mme", "mge"))
     dpq2test <- c("d", "p")
@@ -369,17 +374,14 @@ fitdistC <- function (data, distr, method = c("mge"), start=NULL,
   #check argument data
   if (!(is.vector(data) & is.numeric(data) & length(data)>1))
     stop("data must be a numeric vector of length greater than 1")
-  
   #encapsulate three dots arguments
   my3dots <- list(...)    
   if (length(my3dots) == 0) 
     my3dots <- NULL
   n <- length(data)
-  
   # manage starting/fixed values: may raise errors or return two named list
   arg_startfix <- manageparam(start.arg=start, fix.arg=fix.arg, obs=data, 
                               distname=distname, weights=weights)
-  
   #check inconsistent parameters
   argddistname <- names(formals(ddistname))
   hasnodefaultval <- sapply(formals(ddistname), is.name)
@@ -391,7 +393,6 @@ fitdistC <- function (data, distr, method = c("mge"), start=NULL,
     fix.arg.fun <- fix.arg
   else
     fix.arg.fun <- NULL
-  
   # check d, p, q, functions of distname
   resdpq <- testdpqfun(distname, dpq2test, start.arg=arg_startfix$start.arg, 
                        fix.arg=arg_startfix$fix.arg, discrete=discrete)

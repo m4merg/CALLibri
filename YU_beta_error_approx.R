@@ -23,6 +23,11 @@ data <- transform(data, AF= AD/DP)
 data <- na.omit(data)
 data <- data[order(data$AF),]
 
+gap_measure <- function(data) {
+	measure <- (max(data$AF)*length(data$AF)-sum(data$AF))/length(data$AF)
+	return(measure)
+	}
+
 fitCustom <- function(data, weights) {
 	gof <- "ADW"
 	customFit <- fitdistC(data = data, "beta", method="mge", gof=gof, weights = weights)
@@ -66,7 +71,10 @@ isSuitable <- function(distribution) {
 baselineDataCount <- min(baselineDataCount, round(baselineDataFraction*nrow(data)))
 dataCurrent <- data[1:baselineDataCount,]
 distrCurrent <- fitCustom(data = dataCurrent$AF, weights = dataCurrent$weight)
+
+cat("DATA PRIMER:\n")
 print(dataCurrent)
+cat("SHIFTING DATA PRIMER FOR SUITABLE DISTRIBUTION\n")
 
 ############### MAKING PRIMER DATA SHIFT ##################
 base_shift <- 0
@@ -128,8 +136,10 @@ while (1) {
 ###########################################
 
 cat("SHIFT_final beta distribution base shift: ", base_shift, " / skip: ", skip,"\n")
+cat("WORKING DATA PRIMER\n")
 print(dataCurrent)
-cat("Starting beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], "\n")
+cat("Starting beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], " / gap: ",gap_measure(dataCurrent),"\n")
+cat("ITERATIONAL SIGNAL SEARCH\n")
 
 for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
 	pval_local <- 1 - ppb(round(data[i,]$AD), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = data[i,]$DP)
@@ -143,13 +153,13 @@ for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
 		#print(distrCurrent$estimate[[2]])
 		}
 	#print(dataCurrent)
-	cat(i,"\t",data[i,]$AD,'-',data[i,]$DP,':',data[i,]$AF,"\t",pval_local,"\t",pval_threshold_for_distr,"\t",distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]],"\n")
+	cat(i,"\tAD: ",data[i,]$AD,' /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
 	}
 cat("Final beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], "\n")
 pval_local <- max(0.00000000001, (1 - ppb(round(ADobs), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs)))
 #cat(round(ADobs),"\t",distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]], "\t",DPobs,"\n")
 #cat(ppb(round(ADobs), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs),"\n")
-cat(ADobs, "\t", DPobs, "\t", ADobs/DPobs, "\t pval_local:", pval_local,"\n")
+cat("AD sample: ",ADobs, "\t DP sample:", DPobs, "\t AF sample:", ADobs/DPobs, "\t Pval sample:", pval_local,"\n")
 if ((ADobs/DPobs) < mean(dataCurrent$AF)) {
 	cat("1\n")
 	} else {

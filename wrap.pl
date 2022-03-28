@@ -116,26 +116,79 @@ foreach my $cFile (@control) {
 
 open (CFILEINPUT, "<$test_folder/$sampleSeed");
 
-my $sampleData = [];
+threads->create( \&worker_YU ) for 1 .. $n_threads;
+
+my %sampleData;
 while (<CFILEINPUT>) {
 	chomp;
 	my @mas = split/\t/;
-	my $data;
-	$data->{seed} = $sampleSeed;
-	$data->{index} = $mas[0];
-	$data->{amplicon} = $mas[1];
-	$data->{strand} = $mas[2];
-	$data->{altCnt} = $mas[3];
-	$data->{depth} = $mas[4];
+	my $index;
+	my $seed = generate_seed();
+	$sampleData{$mas[0]} = [] unless defined $sampleData{$mas[0]};
+	$index->{seed} = $seed;
+	$index->{index} = $mas[0];
+	$index->{amplicon} = $mas[1];
+	$index->{strand} = $mas[2];
+	$index->{altCnt} = $mas[3];
+	$index->{depth} = $mas[4];
 	#my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
 	my $weight = log($mas[3] + 2.7183)*log($mas[4] + 2.7183)*log($mas[4] + 2.7183);
 	chomp $weight;
-	$data->{weight} = $weight;
-	push @{$sampleData}, $data;
+	$index->{weight} = $weight;
+	push @{$sampleData{$mas[0]}}, $index;
+
+	my @data = grep{($_->{amplicon} eq $index->{amplicon})and($_->{index} eq $index->{index})and($_->{strand} eq $index->{strand})} @{$controlData};
+
+	open (SAMPLEOUTPUT, ">$test_folder/YU_data_$seed");
+	
+	foreach my $arg (@data) {
+		print SAMPLEOUTPUT "",$arg->{altCnt},"\t",$arg->{depth},"\t",$arg->{weight},"\n";
+		}
+	
+	$work_YU->enqueue( [$seed, $index->{altCnt}, $index->{depth}] );
+	
+	close SAMPLEOUTPUT;
 	}
 
 close CFILEINPUT;
 
+$work_YU->end;
+$_->join for threads->list;
+
+foreach my $index (keys %sampleData) {
+	my $pval = [];
+	foreach my $data (@{$sampleData{$index}}) {
+		my $seed = $data->{seed};
+		my $line;
+		print $log_fh "",$data->{index}," / AMP: ",$data->{amplicon}," / STRAND: ",$data->{strand},"\n";
+
+		open (YURES, "<$test_folder/YU_result_$seed");
+		
+		while (<YURES>) {
+			$line = $_;
+			chomp $line;
+			print $log_fh "$line\n";
+			}
+		
+		close YURES;
+		next if $line =~ /NA/;
+		push @{$pval}, $line;
+		}
+	if (scalar(@{$pval}) > 0) {
+		$pval = join(" ", (sort {$a <=> $b} @{$pval}));
+		print STDERR "$index\t$pval\n";
+		$pval = `R --slave -f $current_dir/lib/Fisher.r --args $pval`;
+		chomp $pval;
+		$pval = min(1, ($pval * 1200000));
+		print "$index\t$pval\n";
+		} else {
+		$pval = 'NA';
+		print STDERR "$index\t$pval\n";
+		print "$index\t$pval\n";
+		}
+	}
+
+exit();
 # Creating input for R scripts - generating noize functions
 
 #print Dumper $sampleData;
@@ -152,8 +205,10 @@ while (<SAMPLEINPUT>) {
 	my $index = $mas[0];
 	my $strand = $mas[2];
 	print $log_fh "$index - $amplicon - $strand\n";
-	my $ADobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'altCnt'};
-	my $DPobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'depth'};
+	my $ADobs;
+	my $DPobs;
+	#$ADobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'altCnt'};
+	#$DPobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'depth'};
 	#print $log_file "$amplicon\t$index\t$strand\t$ADobs\n";
 	my @data = grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$controlData};
 	my $seed = generate_seed();
@@ -166,7 +221,7 @@ while (<SAMPLEINPUT>) {
 	
 	close SAMPLEOUTPUT;
 	
-	$work_YU->enqueue( [$seed, $ADobs, $DPobs] );
+	#$work_YU->enqueue( [$seed, $ADobs, $DPobs] );
 	$YU_result{$index} = [] unless defined $YU_result{$index};
 	push @{$YU_result{$index}}, {'amplicon' => $amplicon, 
 					'index' => $index,
