@@ -56,7 +56,7 @@ sub load_VarDict {
 	my $vcf		= shift;
 
 	open (my $vcf_fh, "<$vcf");
-
+	
 	while (<$vcf_fh>) {
 		chomp;
 		next if m!#!;
@@ -86,7 +86,7 @@ sub load_VarDict {
 					}
 				}
 			die "Multiple maps to segments for mutation $mas[0]:$mas[1]$mas[3]>$alt\n" if $count > 1;
-			die "Mutation $mas[0]:$mas[1]$mas[3]>$alt falls out from designed amplicons\n" if $count eq 0;
+			warn "Mutation $mas[0]:$mas[1]$mas[3]>$alt falls out from designed amplicons - it will be ignored\n" if $count eq 0;
 			}
 		}
 	close $vcf_fh;
@@ -102,6 +102,7 @@ sub define_segments { # simple merge BED file
 	my $current_segment;
 	while (<$panel_fh>) {
 		my @mas = split/\t/;
+		#print STDERR "@mas\n" if $mas[1] eq '29130328';
 		next unless defined $mas[2];
 		next unless $mas[1] =~ /^\d+$/;
 		next unless $mas[2] =~ /^\d+$/;
@@ -123,10 +124,13 @@ sub define_segments { # simple merge BED file
 				next;
 				}
 			} else {
+			#print STDERR Dumper $current_segment if $mas[1] eq '29130328';
 			push (@{$class->{segments}}, $current_segment);
 			$current_segment = {contig => $mas[0], start => $mas[1], end => $mas[2], variations => []};
 			}
 		}
+	push (@{$class->{segments}}, $current_segment);
+	
 	}
 
 sub load_amplicons {

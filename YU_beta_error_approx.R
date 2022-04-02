@@ -28,6 +28,13 @@ gap_measure <- function(data) {
 	return(measure)
 	}
 
+round_custom <- function(value) {
+	if (value < 1) {
+		return(0)
+		}
+	return(round(value))
+	}
+
 fitCustom <- function(data, weights) {
 	gof <- "ADW"
 	customFit <- fitdistC(data = data, "beta", method="mge", gof=gof, weights = weights)
@@ -68,6 +75,10 @@ isSuitable <- function(distribution) {
 		}
 	}
 
+if (nrow(data) < baselineDataCount) {
+	cat("NA\n")
+	q()
+	}
 baselineDataCount <- min(baselineDataCount, round(baselineDataFraction*nrow(data)))
 dataCurrent <- data[1:baselineDataCount,]
 distrCurrent <- fitCustom(data = dataCurrent$AF, weights = dataCurrent$weight)
@@ -142,7 +153,7 @@ cat("Starting beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCur
 cat("ITERATIONAL SIGNAL SEARCH\n")
 
 for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
-	pval_local <- 1 - ppb(round(data[i,]$AD), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = data[i,]$DP)
+	pval_local <- 1 - ppb(floor(round_custom(data[i,]$AD) - 1), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = data[i,]$DP)
 	if (pval_local < pval_threshold_for_distr) {
 		break
 		} else {
@@ -156,15 +167,22 @@ for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
 	cat(i,"\tAD: ",data[i,]$AD,' /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
 	}
 cat("Final beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], "\n")
-pval_local <- max(0.00000000001, (1 - ppb(round(ADobs), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs)))
+pval_local <- '1'
+if (DPobs > 0) {
+	pval_local <- max(0.00000000001, (1 - ppb(floor(round_custom(ADobs) - 1), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs)))
+	}
 #cat(round(ADobs),"\t",distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]], "\t",DPobs,"\n")
 #cat(ppb(round(ADobs), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs),"\n")
 cat("AD sample: ",ADobs, "\t DP sample:", DPobs, "\t AF sample:", ADobs/DPobs, "\t Pval sample:", pval_local,"\n")
-if ((ADobs/DPobs) < mean(dataCurrent$AF)) {
-	cat("1\n")
+if (DPobs == 0) {
+	cat("NA\n")
 	} else {
-	pval_local <- min(1, pval_local*panel_size)
-	cat(pval_local,"\n")
+	if ((ADobs/DPobs) < mean(dataCurrent$AF)) {
+		cat("1\n")
+		} else {
+		pval_local <- min(1, pval_local*panel_size)
+		cat(pval_local,"\n")
+		}
 	}
 
 q()

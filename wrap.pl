@@ -20,6 +20,7 @@ my $list_control = $ARGV[0]; # bamListHRDRef
 my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/5099.bam
 my $input_panel = $ARGV[2]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
 my $input_vcf = $ARGV[3]; # test.vcf
+my $panel_size = 1;
 
 open (my $log_fh, ">$log_file");
 
@@ -31,7 +32,7 @@ my $work_YU   = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 20;
+        my $str = join '' => map $set[rand @set], 1 .. 40;
         return $str
         }
 
@@ -43,7 +44,7 @@ sub worker_HF {
 		my $seed	= $passed->[3];
 		#$bam = "/home/onco-admin/RnD/UEBAcall/81485-01-01.bam";
 		print $log_fh "Started HF $bam\n";
-		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf > test/$seed";
+		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf > $test_folder/$seed";
 		`$cmd`;
 		}
 	}
@@ -157,10 +158,12 @@ $_->join for threads->list;
 
 foreach my $index (keys %sampleData) {
 	my $pval = [];
+	my $ad = [];
+	my $dp = [];
 	foreach my $data (@{$sampleData{$index}}) {
 		my $seed = $data->{seed};
 		my $line;
-		print $log_fh "",$data->{index}," / AMP: ",$data->{amplicon}," / STRAND: ",$data->{strand},"\n";
+		print $log_fh "",$data->{index}," / AMP: ",$data->{amplicon}," / STRAND: ",$data->{strand},"$seed\n";
 
 		open (YURES, "<$test_folder/YU_result_$seed");
 		
@@ -171,20 +174,32 @@ foreach my $index (keys %sampleData) {
 			}
 		
 		close YURES;
-		next if $line =~ /NA/;
+		#next if $line =~ /NA/;
 		push @{$pval}, $line;
+		push @{$ad}, $data->{altCnt};
+		push @{$dp}, $data->{depth};
 		}
-	if (scalar(@{$pval}) > 0) {
-		$pval = join(" ", (sort {$a <=> $b} @{$pval}));
-		print STDERR "$index\t$pval\n";
+	my $ad_string = [];my $pval_string = [];
+	for (my $i = 0; $i < scalar @{$pval}; $i++) {
+		push @{$ad_string}, ('AODAD'.($i + 1).'='.int($ad->[$i]).','.$dp->[$i]);
+		if (uc($pval->[$i]) =~ /N/) {
+			push @{$pval_string}, 'AODPVAL=NA';
+			} else {
+			push @{$pval_string}, ('AODPVAL'.($i + 1).'='.((-1)*int(10*log($pval->[$i])/log(10))/1));
+			}
+		}
+	my $info_string = join(";", @{$ad_string}).';'.join(";", @{$pval_string});
+	if (scalar((grep {$_ ne 'NA'} @{$pval})) > 0) {
+		$pval = join(" ", (sort {$a <=> $b} (grep {$_ ne 'NA'} @{$pval})));
+		#print STDERR "$index\t$pval\n";
 		$pval = `R --slave -f $current_dir/lib/Fisher.r --args $pval`;
 		chomp $pval;
-		$pval = min(1, ($pval * 1200000));
-		print "$index\t$pval\n";
+		$pval = (-1) * int(10*log(min(1, ($pval * $panel_size)))/log(10))/1;
+		print "$index\t$pval\t$info_string\n";
 		} else {
 		$pval = 'NA';
-		print STDERR "$index\t$pval\n";
-		print "$index\t$pval\n";
+		#print STDERR "$index\t$pval\n";
+		print "$index\t$pval\t$info_string\n";
 		}
 	}
 
@@ -251,7 +266,7 @@ foreach my $index (keys %{$pval}) {
 	print STDERR "$index\t$p\n";
 	$p = `R --slave -f $current_dir/lib/Fisher.r --args $p`;
 	chomp $p;
-	$p = min(1, ($p * 1200000));
+	$p = min(1, ($p * $panel_size));
 	print "$index\t$p\n";
 	}
 
