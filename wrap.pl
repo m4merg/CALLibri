@@ -10,6 +10,7 @@ use Data::Dumper;
 use threads;
 use Storable qw ( freeze thaw );
 use List::Util qw(min);
+use List::MoreUtils qw(uniq);
 use Thread::Queue;
 
 my $current_dir = __DIR__;
@@ -17,10 +18,11 @@ my $test_folder = "$current_dir/test";
 my $log_file = "$test_folder/log";
 my $n_threads = 13;
 my $list_control = $ARGV[0]; # bamListHRDRef
-my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/5099.bam
-my $input_panel = $ARGV[2]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
-my $input_vcf = $ARGV[3]; # test.vcf
-my $panel_size = 1;
+#my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/5099.bam
+my $input_panel = $ARGV[1]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
+my $input_vcf = $ARGV[2]; # test.vcf
+my $panel_size = $ARGV[4];
+$panel_size = 1 unless defined $panel_size;
 
 open (my $log_fh, ">$log_file");
 
@@ -32,7 +34,7 @@ my $work_YU   = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 40;
+        my $str = join '' => map $set[rand @set], 1 .. 35;
         return $str
         }
 
@@ -52,10 +54,8 @@ sub worker_HF {
 sub worker_YU {
 	while ( my $passed = $work_YU->dequeue ) {
 		my $seed	= $passed->[0];
-		my $ADobs	= $passed->[1];
-		my $DPobs	= $passed->[2];
 		print $log_fh "Started YU $seed\n";
-		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 $ADobs $DPobs > $test_folder/YU_result_$seed";
+		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 > $test_folder/YU_result_$seed";
 		`$cmd`;
 		}
 	}
@@ -65,26 +65,25 @@ threads->create( \&worker_HF ) for 1 .. $n_threads;
 open (READ, "<$list_control");
 
 my $n = 0;
-my @control;
+my $sample_data;
+my %sample_file;
 while (<READ>) {
 	chomp;
 	next if m!^#!;
-	my $bam = $_;
+	my @mas = split/\t/;
+	if (defined($sample_file{$mas[0]})) {
+		die "Sample name '$mas[0]' met twice in input\n";
+		}
+	my $bam = $mas[1];
 	my $panel = $input_panel;
 	my $vcf = $input_vcf;
 	my $seed = generate_seed();
-	$seed = "control_N$seed";
-	push(@control, $seed);
+	$seed = "bam_data_N$seed";
+	$sample_file{$mas[0]} = $seed;
 	$work_HF->enqueue( [$bam, $panel, $vcf, $seed] );
 	}
 
 close READ;
-
-my $panel = $input_panel;
-my $vcf = $input_vcf;
-my $sampleSeed = generate_seed();
-$sampleSeed = "sample_N$sampleSeed";
-$work_HF->enqueue( [$sample_bam, $panel, $vcf, $sampleSeed] );
 
 $work_HF->end;
 $_->join for threads->list;
@@ -93,193 +92,141 @@ $_->join for threads->list;
 
 # Reading  output files with read counts and forming inner data structure
 
-my $controlData = [];
-foreach my $cFile (@control) {
-	open (CFILEINPUT, "<$test_folder/$cFile");
+my %job_list;
+foreach my $seed (values %sample_file) {
+	open (CFILEINPUT, "<$test_folder/$seed");
+	$sample_data->{({reverse %sample_file}->{$seed})} = {};
 	while (<CFILEINPUT>) {
 		chomp;
 		my @mas = split/\t/;
-		my $data;
-		$data->{seed} = $cFile;
-		$data->{index} = $mas[0];
-		$data->{amplicon} = $mas[1];
-		$data->{strand} = $mas[2];
-		$data->{altCnt} = $mas[3];
-		$data->{depth} = $mas[4];
-		#my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
 		my $weight = log($mas[3] + 2.7183)*log($mas[4] + 2.7183)*log($mas[4] + 2.7183);
 		chomp $weight;
-		$data->{weight} = $weight;
-		push @{$controlData}, $data;
+		$job_list{"$mas[0]\@$mas[1]\@$mas[2]"} = 1;
+		$sample_data->{({reverse %sample_file}->{$seed})}->{"$mas[0]\@$mas[1]\@$mas[2]"} = {"altCnt" => $mas[3], "depth" => $mas[4], "weight" => $weight};
 		}
 	close CFILEINPUT;
 	}
 
-open (CFILEINPUT, "<$test_folder/$sampleSeed");
-
 threads->create( \&worker_YU ) for 1 .. $n_threads;
 
-my %sampleData;
-while (<CFILEINPUT>) {
-	chomp;
-	my @mas = split/\t/;
-	my $index;
-	my $seed = generate_seed();
-	$sampleData{$mas[0]} = [] unless defined $sampleData{$mas[0]};
-	$index->{seed} = $seed;
-	$index->{index} = $mas[0];
-	$index->{amplicon} = $mas[1];
-	$index->{strand} = $mas[2];
-	$index->{altCnt} = $mas[3];
-	$index->{depth} = $mas[4];
-	#my $weight = `R --slave -f lib/get_weight.r --args $mas[3] $mas[4] 0.05`;
-	my $weight = log($mas[3] + 2.7183)*log($mas[4] + 2.7183)*log($mas[4] + 2.7183);
-	chomp $weight;
-	$index->{weight} = $weight;
-	push @{$sampleData{$mas[0]}}, $index;
+my %indexData;
+my %beta;
+foreach my $index (uniq(map {$_ = substr($_, 0, index($_, '@'))} keys %job_list)) {
+	foreach my $job_element (grep(/$index/, (keys %job_list))) {
+		my $amplicon;
+		my $strand;
+		if ($job_element =~ /(\S+)@(\S+)@(\S+)/) {
+			$amplicon = $2;
+			$strand = $3;
+			}
+		my $seed = generate_seed();
+		$beta{$seed} = {};
+		$beta{$seed}->{amplicon} = $amplicon;
+		$beta{$seed}->{index} = $index;
+		$beta{$seed}->{strand} = $strand;
+		open (SAMPLEOUTPUT, ">$test_folder/YU_data_$seed");
+		
+		foreach my $sample (keys %{$sample_data}) {
+			next unless defined $sample_data->{$sample}->{$job_element};
+			print SAMPLEOUTPUT "",$sample_data->{$sample}->{$job_element}->{altCnt},"\t",$sample_data->{$sample}->{$job_element}->{depth},"\t",$sample_data->{$sample}->{$job_element}->{weight},"\n";
+			}
+		close SAMPLEOUTPUT;
 
-	my @data = grep{($_->{amplicon} eq $index->{amplicon})and($_->{index} eq $index->{index})and($_->{strand} eq $index->{strand})} @{$controlData};
-
-	open (SAMPLEOUTPUT, ">$test_folder/YU_data_$seed");
-	
-	foreach my $arg (@data) {
-		print SAMPLEOUTPUT "",$arg->{altCnt},"\t",$arg->{depth},"\t",$arg->{weight},"\n";
+		$work_YU->enqueue( [$seed] );
 		}
-	
-	$work_YU->enqueue( [$seed, $index->{altCnt}, $index->{depth}] );
-	
-	close SAMPLEOUTPUT;
 	}
-
-close CFILEINPUT;
 
 $work_YU->end;
 $_->join for threads->list;
 
-foreach my $index (keys %sampleData) {
-	my $pval = [];
-	my $ad = [];
-	my $dp = [];
-	foreach my $data (@{$sampleData{$index}}) {
-		my $seed = $data->{seed};
-		my $line;
-		print $log_fh "",$data->{index}," / AMP: ",$data->{amplicon}," / STRAND: ",$data->{strand},"$seed\n";
+foreach my $seed (keys %beta) {
+	print $log_fh "",$beta{$seed}->{index}," / AMP: ",$beta{$seed}->{amplicon}," / STRAND: ",$beta{$seed}->{strand},"$seed\n";
 
-		open (YURES, "<$test_folder/YU_result_$seed");
-		
-		while (<YURES>) {
-			$line = $_;
-			chomp $line;
-			print $log_fh "$line\n";
-			}
-		
-		close YURES;
-		#next if $line =~ /NA/;
-		push @{$pval}, $line;
-		push @{$ad}, $data->{altCnt};
-		push @{$dp}, $data->{depth};
+	open (YURES, "<$test_folder/YU_result_$seed");
+	my $line;
+	while (<YURES>) {
+		$line = $_;
+		chomp $line;
+		print $log_fh "$line\n";
 		}
-	my $ad_string = [];my $pval_string = [];
-	for (my $i = 0; $i < scalar @{$pval}; $i++) {
-		push @{$ad_string}, ('AODAD'.($i + 1).'='.int($ad->[$i]).','.$dp->[$i]);
-		if (uc($pval->[$i]) =~ /N/) {
-			push @{$pval_string}, 'AODPVAL=NA';
-			} else {
-			push @{$pval_string}, ('AODPVAL'.($i + 1).'='.((-1)*int(10*log($pval->[$i])/log(10))/1));
-			}
-		}
-	my $info_string = join(";", @{$ad_string}).';'.join(";", @{$pval_string});
-	if (scalar((grep {$_ ne 'NA'} @{$pval})) > 0) {
-		$pval = join(" ", (sort {$a <=> $b} (grep {$_ ne 'NA'} @{$pval})));
-		#print STDERR "$index\t$pval\n";
-		$pval = `R --slave -f $current_dir/lib/Fisher.r --args $pval`;
-		chomp $pval;
-		$pval = (-1) * int(10*log(min(1, ($pval * $panel_size)))/log(10))/1;
-		print "$index\t$pval\t$info_string\n";
-		} else {
-		$pval = 'NA';
-		#print STDERR "$index\t$pval\n";
-		print "$index\t$pval\t$info_string\n";
-		}
+	close YURES;
+	
+	my $key = $beta{$seed}->{index}.'@'.$beta{$seed}->{amplicon}.'@'.$beta{$seed}->{strand};
+	$beta{$key} = {};
+	$beta{$key}->{alpha} = ((split/\t/,$line)[0] || "NA");
+	$beta{$key}->{beta}  = ((split/\t/,$line)[1] || "NA");
+	$beta{$key}->{mean}  = ((split/\t/,$line)[2] || "NA");
+	$beta{$key}->{alpha} =~ s/^\s+|\s+$//g;
+	$beta{$key}->{beta}  =~ s/^\s+|\s+$//g;
+	$beta{$key}->{mean}  =~ s/^\s+|\s+$//g;
+	$beta{$key}->{seed} = $seed;
 	}
 
-exit();
-# Creating input for R scripts - generating noize functions
+my $pval_calc_seed = generate_seed();
+open (my $pval_calc_fh, ">$test_folder/ppb_$pval_calc_seed.in");
 
-#print Dumper $sampleData;
-open (SAMPLEINPUT, "<$test_folder/$sampleSeed");
+my %group_seeds;
+foreach my $sample (keys %{$sample_data}) {
+	foreach my $index (uniq(map {$_ = substr($_, 0, index($_, '@'))} keys %job_list)) {
+		my $pval = [];
+		my $ad = [];
+		my $dp = [];
+		my $seed = generate_seed();
+		$group_seeds{$seed} = {'index' => $index, 'sample' => $sample};
+		foreach my $job_element (grep(/$index/, (keys %job_list))) {
+			my $altCnt;
+			my $depth;
+			unless (defined $sample_data->{$sample}->{$job_element}) {
+				$altCnt = "NA";
+				$depth = "NA";
+				} else {
+				$altCnt = $sample_data->{$sample}->{$job_element}->{altCnt};
+				$depth  = $sample_data->{$sample}->{$job_element}->{depth};
+				}
+			my $alpha_val  = $beta{$job_element}->{alpha};
+			my $beta_val   = $beta{$job_element}->{beta};
+			my $mean_val   = $beta{$job_element}->{mean};
+			#my $cmd = "R --slave -f $current_dir/lib/ppb.r --args $altCnt $depth $alpha_val $beta_val $mean_val $panel_size";
+			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t$panel_size\n";
+			}
+		}
+	}
+close $pval_calc_fh;
 
-my $pval = {};
-threads->create( \&worker_YU ) for 1 .. $n_threads;
+`R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$pval_calc_seed.in $test_folder/ppb_$pval_calc_seed.out.total $test_folder/ppb_$pval_calc_seed.out.detailed`;
 
-my %YU_result;
-while (<SAMPLEINPUT>) {
+my @pval_by_group;
+open (PVALBYGROUP, "<$test_folder/ppb_$pval_calc_seed.out.detailed");
+
+while (<PVALBYGROUP>) {
 	chomp;
 	my @mas = split/\t/;
-	my $amplicon = $mas[1];
-	my $index = $mas[0];
-	my $strand = $mas[2];
-	print $log_fh "$index - $amplicon - $strand\n";
-	my $ADobs;
-	my $DPobs;
-	#$ADobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'altCnt'};
-	#$DPobs = [grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$sampleData}]->[0]->{'depth'};
-	#print $log_file "$amplicon\t$index\t$strand\t$ADobs\n";
-	my @data = grep{($_->{amplicon} eq $amplicon)and($_->{index} eq $index)and($_->{strand} eq $strand)} @{$controlData};
-	my $seed = generate_seed();
-	print $log_fh "$seed\n";
-	open (SAMPLEOUTPUT, ">$test_folder/YU_data_$seed");
-	
-	foreach my $arg (@data) {
-		print SAMPLEOUTPUT "",$arg->{altCnt},"\t",$arg->{depth},"\t",$arg->{weight},"\n";
-		}
-	
-	close SAMPLEOUTPUT;
-	
-	#$work_YU->enqueue( [$seed, $ADobs, $DPobs] );
-	$YU_result{$index} = [] unless defined $YU_result{$index};
-	push @{$YU_result{$index}}, {'amplicon' => $amplicon, 
-					'index' => $index,
-					'strand' => $strand,
-					'seed' => $seed,
-					'ADobs' => $ADobs,
-					'DPobs' => $DPobs};
-	#print $log_fh `R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/$seed 1 $ADobs $DPobs`;
-	#my $p = `tail -n1 $log_file`;
-	#chomp $p;
-	#$pval->{$index} = [] unless defined $pval->{$index};
-	#push @{($pval->{$index})}, $p;
-	#print $log_fh "$index - $amplicon - $strand - $p\n";
-	
+	my $pval = $mas[3];
+	$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
+	my $ad = $mas[1];
+	$ad = int($ad) unless $ad eq 'NA';
+	push @pval_by_group, {'seed' => $mas[0], "AD" => $ad, "DP" => $mas[2], "P" => $pval};
 	}
 
-close SAMPLEINPUT;
+close PVALBYGROUP;
 
-$work_YU->end;
-$_->join for threads->list;
-print STDERR Dumper \%YU_result;
+open (PVALTOTAL, "<$test_folder/ppb_$pval_calc_seed.out.total");
+
+while (<PVALTOTAL>) {
+	chomp;
+	my @mas = split/\t/;
+	my $pval = $mas[1];
+	$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
+	my $i = 0;
+	my $index  = $group_seeds{$mas[0]}->{index};
+	my $sample = $group_seeds{$mas[0]}->{sample};
+	print "$sample\t$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
+        }
+
+close PVALTOTAL;
+
 
 exit();
-
-foreach my $index (keys %{$pval}) {
-	my $p = join(' ', (sort {$a <=> $b} @{$pval->{$index}}));
-	print STDERR "$index\t$p\n";
-	$p = `R --slave -f $current_dir/lib/Fisher.r --args $p`;
-	chomp $p;
-	$p = min(1, ($p * $panel_size));
-	print "$index\t$p\n";
-	}
-
-
-
-
-
-
-
-
-
-
-
 
 
 

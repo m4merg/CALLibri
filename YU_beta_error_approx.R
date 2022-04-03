@@ -15,8 +15,10 @@ baselineDataFraction <- 0.3
 baselineDataCount <- 15
 
 panel_size <- as.numeric(args[8])
-ADobs <- as.numeric(args[9])
-DPobs <- as.numeric(args[10])
+#ADobs <- as.numeric(args[9])
+#DPobs <- as.numeric(args[10])
+ADobs <- 1;
+DPobs <- 1;
 
 data <- read.table(file = args[7], sep = '\t', header = FALSE, col.names = c('AD', 'DP', 'weight'))
 data <- transform(data, AF= AD/DP)
@@ -38,27 +40,7 @@ round_custom <- function(value) {
 fitCustom <- function(data, weights) {
 	gof <- "ADW"
 	customFit <- fitdistC(data = data, "beta", method="mge", gof=gof, weights = weights)
-	#if (is.na(customFit$estimate[[1]])) {
-	#	gof <- "CvM"
-	#	customFit <- fitdistrplus::fitdist(data, "beta", method="mge", gof=gof)
-	#	}
-	#if (is.na(customFit$estimate[[2]])) {
-	#	gof <- "CvM"
-	#	customFit <- fitdistrplus::fitdist(data, "beta", method="mge", gof=gof)
-	#	}
-	#if (customFit$estimate[[1]] < 1) {
-	#	customFit <- fitdistrplus::fitdist(data, "beta", method="mge", gof=gof, fix.arg=list(shape1=1))
-	#	}
 	return(customFit)
-	}
-
-getNextProbe <- function(AD, DP, alpa, beta, threshold) {
-	#pval_local <- dpb(AD, alpha, beta, c = DP)
-	#if (pval_local < threshold) {
-	#	return 0
-	#	} else {
-	#	return 1
-	#	}
 	}
 
 isSuitable <- function(distribution) {
@@ -167,12 +149,13 @@ for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
 	cat(i,"\tAD: ",data[i,]$AD,' /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
 	}
 cat("Final beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], "\n")
+cat(distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]],"\t",mean(dataCurrent$AF));
+q()
 pval_local <- '1'
 if (DPobs > 0) {
 	pval_local <- max(0.00000000001, (1 - ppb(floor(round_custom(ADobs) - 1), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs)))
 	}
-#cat(round(ADobs),"\t",distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]], "\t",DPobs,"\n")
-#cat(ppb(round(ADobs), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = DPobs),"\n")
+
 cat("AD sample: ",ADobs, "\t DP sample:", DPobs, "\t AF sample:", ADobs/DPobs, "\t Pval sample:", pval_local,"\n")
 if (DPobs == 0) {
 	cat("NA\n")
@@ -188,24 +171,3 @@ if (DPobs == 0) {
 q()
 
 
-if (length(data[data>0]) < 10) {
-	cat("NA\n");
-	} else {
-	
-	dataCurrent <- data[data>0][1:round(baselineDataFraction*length(data[data>0]))]
-	distrCurrent <- fitCustom(dataCurrent)
-	dataBaseline <- dataCurrent
-	
-	for (i in (round(baselineDataFraction*length(data[data>0])) + 1):length(data[data>0]) ) {
-		prob <- 1-pbeta(data[data>0][i], distrCurrent$estimate[[1]], distrCurrent$estimate[[2]])
-		if (prob > pval) {
-			dataCurrent <- c(dataCurrent, data[data>0][i])
-			distrCurrent <- fitCustom(dataCurrent)
-			#prob <- 1-pbeta(data[data>0][i], distrCurrent$estimate[[1]], distrCurrent$estimate[[2]])
-			}
-		cat (i,data[data>0][i],prob,pval,distrCurrent$estimate[[1]],distrCurrent$estimate[[2]],"\n", sep="\t")
-		}
-
-	prob <- 1-pbeta(data_exp, distrCurrent$estimate[[1]], distrCurrent$estimate[[2]])
-	cat(prob,"\t", distrCurrent$estimate[[1]],"\t", distrCurrent$estimate[[2]],"\t", distrCurrent$aic,"\t", distrCurrent$bic,"\t", length(dataCurrent),"/",length(data[data>0]),"\n")
-	}
