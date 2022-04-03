@@ -34,7 +34,7 @@ my $work_YU   = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 35;
+        my $str = join '' => map $set[rand @set], 1 .. 15;
         return $str
         }
 
@@ -187,7 +187,7 @@ foreach my $sample (keys %{$sample_data}) {
 			my $beta_val   = $beta{$job_element}->{beta};
 			my $mean_val   = $beta{$job_element}->{mean};
 			#my $cmd = "R --slave -f $current_dir/lib/ppb.r --args $altCnt $depth $alpha_val $beta_val $mean_val $panel_size";
-			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t$panel_size\n";
+			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
 			}
 		}
 	}
@@ -216,7 +216,7 @@ while (<PVALTOTAL>) {
 	chomp;
 	my @mas = split/\t/;
 	my $pval = $mas[1];
-	$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
+	$pval = ((-1) * int(10*log(min(1, ($pval * $panel_size)))/log(10))/1) unless $pval eq 'NA';
 	my $i = 0;
 	my $index  = $group_seeds{$mas[0]}->{index};
 	my $sample = $group_seeds{$mas[0]}->{sample};

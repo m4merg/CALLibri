@@ -33,21 +33,12 @@ round_custom <- function(value) {
         }
 
 get_pval <- function(AD, DP, alpha, beta, mean, panel_size) {
-	cat(" - STARTED\n")
 	if (is.na(AD) || is.na(DP) || is.na(mean) || is.na(alpha) || is.na(beta)) {
 		return("NA")
 		}
 	if (AD == 'NA' || DP == 'NA' || mean == 'NA' || alpha == 'NA' || beta == 'NA') {
 		return("NA")
 		}
-	cat(" - AD ", AD,"\n")
-	cat(" - DP ", DP,"\n")
-	cat(" - alpha ", alpha,"\n")
-	cat(" - beta ", beta,"\n")
-	cat(" - mean ", mean,"\n")
-	cat(" - PS ", panel_size,"\n")
-	print(alpha)
-	print(typeof(alpha))
 
 	pval_local <- 1
 	if (DP == 0) {
