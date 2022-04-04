@@ -1,3 +1,4 @@
+options(warn=1)
 args <- commandArgs()
 list.of.packages <- c(
   "foreach",
@@ -55,20 +56,21 @@ get_pval <- function(AD, DP, alpha, beta, mean, panel_size) {
 	return(pval_local)
 	}
 
-my.cluster <- parallel::makeCluster(13, type = "PSOCK")
+#my.cluster <- parallel::makeCluster(13, type = "PSOCK")
 #print(my.cluster)
-doParallel::registerDoParallel(cl = my.cluster)
-foreach::getDoParRegistered()
-foreach::getDoParWorkers()
+#doParallel::registerDoParallel(cl = my.cluster)
+#foreach::getDoParRegistered()
+#foreach::getDoParWorkers()
 
-x <- foreach (i = 1:nrow(data), .combine = rbind, .packages='scModels') %dopar% {
+
+for (i in 1:nrow(data)) {
 	pval <- get_pval(data[i,]$AD, data[i,]$DP, data[i,]$alpha, data[i,]$beta, data[i,]$mean, data[i,]$panel_size)
-	data.frame(seed = data[i,]$seed, AD = data[i,]$AD, D = data[i,]$DP, pval = pval)
+	data[i,8] <- pval
 	}
 
-seeds <- unique(x$seed)
+seeds <- unique(data$seed)
 y <- foreach (i = 1:(length(seeds)), .combine = rbind, .packages='poolr') %do% {
-	p_vector <- x[x$seed == seeds[i],]$pval
+	p_vector <- data[data$seed == seeds[i],]$pval
 	p_vector <- as.numeric(p_vector[!p_vector %in% "NA"])
 	p_vector <- na.omit(p_vector)
 	pval <- 'NA'
@@ -79,8 +81,8 @@ y <- foreach (i = 1:(length(seeds)), .combine = rbind, .packages='poolr') %do% {
 	}
 
 write.table(y, file = file_out_total, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
-write.table(x, file = file_out_detailed, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
-
+write.table(data[,c("seed", "AD", "DP", "pvalue")], file = file_out_detailed, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+#warnings()
 #print(y[y$seed == 'P8ahHtkQeLvfp32QoAbFxDGbHcqpgEep4ua',])
 #print(x[x$seed == 'P8ahHtkQeLvfp32QoAbFxDGbHcqpgEep4ua',])
 

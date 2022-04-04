@@ -21,7 +21,7 @@ my $list_control = $ARGV[0]; # bamListHRDRef
 #my $sample_bam = $ARGV[1]; # /home/onco-admin/RnD/UEBAcall/5099.bam
 my $input_panel = $ARGV[1]; # /home/onco-admin/ATLAS_software/aod-pipe/panel_info/AODHRD15/AODHRD15.designed.bed
 my $input_vcf = $ARGV[2]; # test.vcf
-my $panel_size = $ARGV[4];
+my $panel_size = $ARGV[3];
 $panel_size = 1 unless defined $panel_size;
 
 open (my $log_fh, ">$log_file");
@@ -31,6 +31,7 @@ my $minimum_coverage = 2; # Positions with coverage lower this value will be ign
 
 my $work_HF   = Thread::Queue->new;
 my $work_YU   = Thread::Queue->new;
+my $work_PPB  = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
@@ -56,6 +57,16 @@ sub worker_YU {
 		my $seed	= $passed->[0];
 		print $log_fh "Started YU $seed\n";
 		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 > $test_folder/YU_result_$seed";
+		`$cmd`;
+		}
+	}
+
+sub worker_PPB {
+	while ( my $passed = $work_PPB->dequeue ) {
+		my $seed	= $passed->[0];
+		my $counter	= $passed->[1];
+		print $log_fh "Started PPB $seed $counter\n";
+		my $cmd = `R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$seed.in.$counter $test_folder/ppb_$seed.out.total.p$counter $test_folder/ppb_$seed.out.detailed.p$counter > $test_folder/ppb_$seed.log.p$counter`;
 		`$cmd`;
 		}
 	}
@@ -163,9 +174,13 @@ foreach my $seed (keys %beta) {
 	}
 
 my $pval_calc_seed = generate_seed();
-open (my $pval_calc_fh, ">$test_folder/ppb_$pval_calc_seed.in");
 
 my %group_seeds;
+my $group_seed_count = 0;
+my $group_seed_counter = 1;
+open (my $pval_calc_fh, ">$test_folder/ppb_$pval_calc_seed.in.$group_seed_counter");
+threads->create( \&worker_PPB ) for 1 .. $n_threads;
+
 foreach my $sample (keys %{$sample_data}) {
 	foreach my $index (uniq(map {$_ = substr($_, 0, index($_, '@'))} keys %job_list)) {
 		my $pval = [];
@@ -188,12 +203,29 @@ foreach my $sample (keys %{$sample_data}) {
 			my $mean_val   = $beta{$job_element}->{mean};
 			#my $cmd = "R --slave -f $current_dir/lib/ppb.r --args $altCnt $depth $alpha_val $beta_val $mean_val $panel_size";
 			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
+			print $log_fh "$index\t$sample\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
+			++$group_seed_count;
+			}
+		if ($group_seed_count > 3000) {
+			close $pval_calc_fh;
+			$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter] );
+			$group_seed_count = 0;
+			$group_seed_counter += 1;
+			open ($pval_calc_fh, ">$test_folder/ppb_$pval_calc_seed.in.$group_seed_counter");
+
 			}
 		}
 	}
 close $pval_calc_fh;
+if ($group_seed_count > 0) {
+	$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter] );
+	}
 
-`R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$pval_calc_seed.in $test_folder/ppb_$pval_calc_seed.out.total $test_folder/ppb_$pval_calc_seed.out.detailed`;
+$work_PPB->end;
+$_->join for threads->list;
+
+`cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total`;
+`cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed`;
 
 my @pval_by_group;
 open (PVALBYGROUP, "<$test_folder/ppb_$pval_calc_seed.out.detailed");
