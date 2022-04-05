@@ -66,7 +66,7 @@ sub worker_PPB {
 		my $seed	= $passed->[0];
 		my $counter	= $passed->[1];
 		print $log_fh "Started PPB $seed $counter\n";
-		my $cmd = `R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$seed.in.$counter $test_folder/ppb_$seed.out.total.p$counter $test_folder/ppb_$seed.out.detailed.p$counter > $test_folder/ppb_$seed.log.p$counter`;
+		my $cmd = `R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$seed.in.$counter $test_folder/ppb_$seed.out.total.p$counter $test_folder/ppb_$seed.out.detailed.p$counter 2> $test_folder/ppb_$seed.log.p$counter`;
 		`$cmd`;
 		}
 	}

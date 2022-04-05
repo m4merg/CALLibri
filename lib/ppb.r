@@ -64,12 +64,19 @@ get_pval <- function(AD, DP, alpha, beta, mean, panel_size) {
 
 
 for (i in 1:nrow(data)) {
+	cat("HERE\n")
 	pval <- get_pval(data[i,]$AD, data[i,]$DP, data[i,]$alpha, data[i,]$beta, data[i,]$mean, data[i,]$panel_size)
+	cat(pval,"\n")
 	data[i,8] <- pval
+	cat("FINISH\n")
 	}
 
 seeds <- unique(data$seed)
-y <- foreach (i = 1:(length(seeds)), .combine = rbind, .packages='poolr') %do% {
+y <- df <- data.frame(seed = character(),
+                 pval = integer(),
+                 stringsAsFactors = FALSE)
+#y <- foreach (i = 1:(length(seeds)), .combine = rbind, .packages='poolr') %do% {
+for (i in 1:(length(seeds))) {
 	p_vector <- data[data$seed == seeds[i],]$pval
 	p_vector <- as.numeric(p_vector[!p_vector %in% "NA"])
 	p_vector <- na.omit(p_vector)
@@ -77,7 +84,8 @@ y <- foreach (i = 1:(length(seeds)), .combine = rbind, .packages='poolr') %do% {
 	if (length(p_vector) > 0) {
 		pval <- fisher(p_vector)$p
 		}
-	data.frame(seed = seeds[i], pval = pval)
+	#data.frame(seed = seeds[i], pval = pval)
+	y[nrow(y) + 1,] = c(seeds[i],pval)
 	}
 
 write.table(y, file = file_out_total, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
