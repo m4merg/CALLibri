@@ -237,7 +237,11 @@ while (<PVALBYGROUP>) {
 	$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
 	my $ad = $mas[1];
 	$ad = int($ad) unless $ad eq 'NA';
-	push @pval_by_group, {'seed' => $mas[0], "AD" => $ad, "DP" => $mas[2], "P" => $pval};
+	my $alpha = $mas[4];
+	my $beta = $mas[5];
+	$alpha = int(1000*$alpha)/1000 unless $alpha eq 'NA';
+	$beta = int(1000*$beta)/1000 unless $beta eq 'NA';
+	push @pval_by_group, {'seed' => $mas[0], "AD" => $ad, "DP" => $mas[2], "P" => $pval, "A" => $alpha, "B" => $beta};
 	}
 
 close PVALBYGROUP;
@@ -252,7 +256,7 @@ while (<PVALTOTAL>) {
 	my $i = 0;
 	my $index  = $group_seeds{$mas[0]}->{index};
 	my $sample = $group_seeds{$mas[0]}->{sample};
-	print "$sample\t$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
+	print "$sample\t$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}.";AODA$i=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
         }
 
 close PVALTOTAL;

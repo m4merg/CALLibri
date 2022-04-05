@@ -64,11 +64,8 @@ get_pval <- function(AD, DP, alpha, beta, mean, panel_size) {
 
 
 for (i in 1:nrow(data)) {
-	cat("HERE\n")
 	pval <- get_pval(data[i,]$AD, data[i,]$DP, data[i,]$alpha, data[i,]$beta, data[i,]$mean, data[i,]$panel_size)
-	cat(pval,"\n")
 	data[i,8] <- pval
-	cat("FINISH\n")
 	}
 
 seeds <- unique(data$seed)
@@ -89,7 +86,7 @@ for (i in 1:(length(seeds))) {
 	}
 
 write.table(y, file = file_out_total, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
-write.table(data[,c("seed", "AD", "DP", "pvalue")], file = file_out_detailed, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(data[,c("seed", "AD", "DP", "pvalue", "alpha", "beta")], file = file_out_detailed, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 #warnings()
 #print(y[y$seed == 'P8ahHtkQeLvfp32QoAbFxDGbHcqpgEep4ua',])
 #print(x[x$seed == 'P8ahHtkQeLvfp32QoAbFxDGbHcqpgEep4ua',])
