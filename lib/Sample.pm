@@ -260,22 +260,29 @@ sub pipeline {
 			#print STDERR Dumper $stat;
 			next unless defined($stat);
 			my $qscore = $class->get_qscore($alignment, $stat);
-			#print "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
+			#print STDERR "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
+			next if (Score->new($qscore)->phred) < 15;
 			my $read;
 			$read->{name}           = $alignment->qname;
 			$read->{BQ}             = $qscore;
 			$read->{strand}         = $alignment->strand;
 			$read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
-
-			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt}))) {
+			#print STDERR "  -------   ",$CandidateVariation->{ref},"\n";
+			#print STDERR "  -------   ",$CandidateVariation->{alt},"\n";
+			#!T2QOU:03477:01058
+			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt})) and ($stat->{match_around} =~ /^\|*-\|*$/)) {
 					$read->{vote} = 'alt';
 					$class->allele($CandidateVariation->{index})->add_read($read);
+					#print STDERR "ALT\n";
 				} elsif (((length($stat->{oref}) eq length($CandidateVariation->{ref}))and
-					(length($stat->{oalt}) eq length($CandidateVariation->{ref})))or
+					(length($stat->{oalt}) eq length($CandidateVariation->{ref})))and
 					(substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}) =~ /^\|*$/)) {
 					$read->{vote} = 'ref';
+					#print STDERR "REF\n";
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					} else {
+						#print STDERR Dumper $stat;
+						#print STDERR "WHAT?\n";
 						#print STDERR substr($stat->{ref}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
 						#print STDERR substr($stat->{match}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
 						#print STDERR substr($stat->{query}, $stat->{aps}-2, $stat->{ape}-$stat->{aps} + 4),"\n";
@@ -360,7 +367,8 @@ sub get_stat { # see pipeline function
         my $stat;
         $stat->{oref} = substr($ref, $aps, $ape-$aps);
         $stat->{oalt} = substr($query, $aps, $ape-$aps);
-
+	
+	#print STDERR " !--------------------- $aps, $ape\n";
         $stat->{oref_add} = substr($ref, $aps - 2, $ape-$aps + 4);
         $stat->{oalt_add} = substr($query, $aps - 2, $ape-$aps + 4);
 
@@ -368,6 +376,8 @@ sub get_stat { # see pipeline function
         $stat->{oalt} =~ s/-//g;
 
         $stat->{match} = $match;
+	$stat->{match_around} = substr($match, $aps - 2, 2).'-'.substr($match, $ape, 2);
+	$stat->{match_var} = substr($stat->{match}, $aps, $ape-$aps);
 	$stat->{ref} = $ref;
 	$stat->{query} = $query;
         $stat->{aps} = $aps; $stat->{ape} = $ape;
