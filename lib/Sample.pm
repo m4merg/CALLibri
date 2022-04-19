@@ -244,10 +244,12 @@ sub pipeline {
 	my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
 	return undef unless defined $sam_segment;
 	my @all_alignments = $sam_segment->features;
+	print STDERR "STARTED SEGMENT: ", $segment->{contig},"\t", $segment->{start},"\t", $segment->{end},"\n";
+	print STDERR "COUNT: ",scalar(@{$segment->{variations}}),"\n";
+	print STDERR "COUNT: ",scalar(@all_alignments),"\n";
 	foreach my $alignment (@all_alignments) {
 		foreach my $CandidateVariation (@{$segment->{variations}}) {
 			my $index = $CandidateVariation->{index};
-			#print STDERR "$index\n";
 			#next if $index ne "chr9:135974142C>CG";
 			if (defined($alignment->get_tag_values("SUPPLEMENTARY"))) {
 				next if $alignment->get_tag_values("SUPPLEMENTARY") eq '1';
@@ -255,7 +257,7 @@ sub pipeline {
 			next if $alignment->get_tag_values("UNMAPPED") eq '1';
 			next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
 			
-			#next unless $alignment->qname eq 'KOVMX:06284:00256';
+			#next unless $alignment->qname eq '53QOO:02914:04180';
 			my $stat = get_stat($CandidateVariation, $alignment);
 			#print STDERR Dumper $stat;
 			next unless defined($stat);
@@ -270,15 +272,17 @@ sub pipeline {
 			#print STDERR "  -------   ",$CandidateVariation->{ref},"\n";
 			#print STDERR "  -------   ",$CandidateVariation->{alt},"\n";
 			#!T2QOU:03477:01058
+			#print STDERR Dumper $CandidateVariation;
+			#print STDERR "",substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}),"\n";
 			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt})) and ($stat->{match_around} =~ /^\|*-\|*$/)) {
 					$read->{vote} = 'alt';
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					#print STDERR "ALT\n";
-				} elsif (((length($stat->{oref}) eq length($CandidateVariation->{ref}))and
-					(length($stat->{oalt}) eq length($CandidateVariation->{ref})))and
-					(substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}) =~ /^\|*$/)) {
+					#print STDERR Dumper $stat;
+				} elsif ($stat->{match_var} =~ /^\|*$/) {
 					$read->{vote} = 'ref';
 					#print STDERR "REF\n";
+					#print STDERR Dumper $stat;
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					} else {
 						#print STDERR Dumper $stat;
@@ -376,12 +380,12 @@ sub get_stat { # see pipeline function
         $stat->{oalt} =~ s/-//g;
 
         $stat->{match} = $match;
-	$stat->{match_around} = substr($match, $aps - 2, 2).'-'.substr($match, $ape, 2);
 	$stat->{match_var} = substr($stat->{match}, $aps, $ape-$aps);
 	$stat->{ref} = $ref;
 	$stat->{query} = $query;
         $stat->{aps} = $aps; $stat->{ape} = $ape;
         $stat->{qps} = $qps; $stat->{qpe} = $qpe;
+	$stat->{match_around} = ($aps < 2 ? substr($match, 0, $aps) : substr($match, $aps - 2, 2)).'-'.($ape < length($match) ? substr($match, $ape, 2) : "");
 
         return $stat;
         }
