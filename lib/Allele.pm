@@ -56,10 +56,10 @@ sub readCount {
 		$reads = [grep {$_->{vote} eq $info->{vote}} @{$reads}];
 		}
 	if (scalar @{$reads} > 0) {
-		$count += $class->readCountCalc($reads, 'positive');
+		$count += $class->readCountCalc($reads, 'positive', 'probability');
 		}
 	if (scalar(@{$opposite_reads}) > 0) {
-		$count += $class->readCountCalc($opposite_reads, 'negative');
+		$count += $class->readCountCalc($opposite_reads, 'negative', 'probability');
 		}
         return $count;
 	}
@@ -68,7 +68,9 @@ sub readCountCalc {
 	my $class = shift;
 	my $reads = shift;
 	my $type  = shift; # Either 'positive' or 'negative'
+	my $method = shift; # Either 'raw' or 'probability'
 	$type = 'positive' unless defined $type;
+	$method = 'probability' unless defined $method;
 	my $sum;
 	foreach my $Read (@{$reads}) {
 		#print STDERR Dumper $Read;
@@ -77,13 +79,15 @@ sub readCountCalc {
 			#$sum += 1 - ($Read->{BQ});
 			#print STDERR (1 - $class->error_prob("edit_ops_forw")),"\n";
 			#print STDERR (1 - $Read->{BQ}),"\n";
-			$sum += 1 - $class->error_prob("edit_ops_forw");
+			$sum += (1 - $class->error_prob("edit_ops_forw")) if $method eq 'probability';
+			$sum += 1 if $method eq 'raw';
 			}
 		if ($type eq 'negative') {
 			#$sum += $Read->{BQ}/3;
 			#print STDERR $class->error_prob("edit_ops_rev"),"\n";
 			#print STDERR $Read->{BQ}/3,"\n";
-			$sum += $class->error_prob("edit_ops_rev");
+			$sum += $class->error_prob("edit_ops_rev") if $method eq 'probability';
+			$sum += 0 if $method eq 'raw';
 			}
 		}
 	return $sum;
@@ -106,24 +110,25 @@ sub error_prob {
 			$denominator = $class->Sample->{NCount}->{$OP->[0]};
 			}
 		#print STDERR "$nominator\t$denominator\n";
+		my $standard = 1000000;
 		if ((defined($denominator))and(not(defined($nominator)))) {
-			$nominator = int($denominator/1000) if $denominator > 1000;
-			$nominator = 1 if $denominator > 5;
+			$nominator = int($denominator/$standard) if $denominator > $standard;
+			#$nominator = 1 if $denominator > 5;
 			unless (defined($nominator)) {
 				$nominator = 1;
-				$denominator = 1000;
+				$denominator = $standard;
 				}
 			}
 		unless ($nominator and $denominator) {
 			$nominator = 1;
-			$denominator = 1000;
+			$denominator = $standard;
 			}
 		if ($nominator > $denominator) {
 			$nominator = 1;
-			$denominator = 1000;
+			$denominator = $standard;
 			}
 		$prob = $prob * $nominator / $denominator;
-		while ($prob < 0.000001) {
+		while ($prob < 0.0000001) {
 			$prob = $prob * 10;
 			}
 		}

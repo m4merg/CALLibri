@@ -244,9 +244,9 @@ sub pipeline {
 	my $sam_segment = $sam->segment($segment->{contig}, $segment->{start}, $segment->{end});
 	return undef unless defined $sam_segment;
 	my @all_alignments = $sam_segment->features;
-	print STDERR "STARTED SEGMENT: ", $segment->{contig},"\t", $segment->{start},"\t", $segment->{end},"\n";
-	print STDERR "COUNT: ",scalar(@{$segment->{variations}}),"\n";
-	print STDERR "COUNT: ",scalar(@all_alignments),"\n";
+	#print STDERR "STARTED SEGMENT: ", $segment->{contig},"\t", $segment->{start},"\t", $segment->{end},"\n";
+	#print STDERR "COUNT: ",scalar(@{$segment->{variations}}),"\n";
+	#print STDERR "COUNT: ",scalar(@all_alignments),"\n";
 	foreach my $alignment (@all_alignments) {
 		foreach my $CandidateVariation (@{$segment->{variations}}) {
 			my $index = $CandidateVariation->{index};

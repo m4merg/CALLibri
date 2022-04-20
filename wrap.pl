@@ -73,6 +73,8 @@ sub worker_PPB {
 
 threads->create( \&worker_HF ) for 1 .. $n_threads;
 
+# Generating count data
+
 open (READ, "<$list_control");
 
 my $n = 0;
@@ -101,7 +103,7 @@ $_->join for threads->list;
 
 #exit;
 
-# Reading  output files with read counts and forming inner data structure
+# Reading  output files with count data with read counts and forming inner data structure
 
 my %job_list;
 foreach my $seed (values %sample_file) {
@@ -117,6 +119,9 @@ foreach my $seed (values %sample_file) {
 		}
 	close CFILEINPUT;
 	}
+
+
+# fitting distributions
 
 threads->create( \&worker_YU ) for 1 .. $n_threads;
 
