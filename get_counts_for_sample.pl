@@ -28,10 +28,10 @@ sub generate_seed {
 sub worker_HF {
 	while ( my $passed = $work_HF->dequeue ) {
 		my $bam		= $passed->[0];
-		my $panel	= $passed->[2];
-		my $vcf		= $passed->[3];
-		my $current_dir	= $passed->[4];
-		my $output	= $passed->[5];
+		my $panel	= $passed->[1];
+		my $vcf		= $passed->[2];
+		my $current_dir	= $passed->[3];
+		my $output	= $passed->[4];
 		
 		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf > $output";
 		`$cmd`;
@@ -43,7 +43,6 @@ sub generate_count_data {
 	my $vcf_array = shift;
 
 	threads->create( \&worker_HF ) for 1 .. ($options->{threads});
-	open (READ, "<".$options->{list});
 	
 	my $n = 0;
 	foreach my $seed (keys %{$vcf_array}) {
@@ -54,9 +53,6 @@ sub generate_count_data {
 		my $output = $options->{test_folder}."/$seed.data";
 		$work_HF->enqueue( [$bam, $panel, $vcf, $current_dir, $output] );
 		}
-	
-	close READ;
-	
 	$work_HF->end;
 	$_->join for threads->list;
 	}
@@ -64,14 +60,15 @@ sub generate_count_data {
 sub write_output {
 	my $options = shift;
 	my $vcf_array = shift;
+	
+	open (WRITE, ">".$options->{output});
+	close WRITE;
 
 	foreach my $seed (keys %{$vcf_array}) {
 		my $data = $options->{test_folder}."/$seed.data";
 		my $cmd = "cat $data >> ".$options->{output};
-		`cmd`;
+		`$cmd`;
 		}
-
-	close WRITE;
 	}
 
 sub get_vcf_array {
@@ -86,8 +83,8 @@ sub get_vcf_array {
 		chomp;
 		next if m!^#!;
 		my @mas = split/\t/;
-		my @alt = split/,/$mas[4];
-		foreach my $arg (@alt) {
+		my @alt_array = split/,/,$mas[4];
+		foreach my $alt (@alt_array) {
 			my $var = "$mas[0]:$mas[1]".uc($mas[3]).">".uc($alt);
 			$var_list{$var} = 1;
 			$total_count += 1;
@@ -111,7 +108,7 @@ sub get_vcf_array {
 				$count += 1;
 				$added += 1;
 				if ($count > $portion) {
-					if ($total_count - $added < ($portion + 10)) {
+					if ($total_count - $added < 120) {
 						} else {
 						close VCF;
 						$count = 0;
@@ -134,8 +131,8 @@ sub get_vcf_array {
 sub run {
 	my $options = shift;
 	my $vcf_array = get_vcf_array($options);
-	my $sample_file = generate_count_data($options, $vcf_array);
-	my ($sample_data, $job_list) = read_count_data($options, $sample_file);
+	generate_count_data($options, $vcf_array);
+	write_output($options, $vcf_array);
 	}
 
 sub option_builder {
@@ -146,6 +143,7 @@ sub option_builder {
 		'v|vcf=s'   => \$opts{'vcf'},
 		's|sample=s'   => \$opts{'sample'},
 		'o|output=s' => \$opts{'output'},
+		'p|panel=s' => \$opts{'panel'},
 		'n|output=s' => \$opts{'threads'},
 		'seed|seed=s'   => \$opts{'seed'}
 	);
@@ -153,6 +151,7 @@ sub option_builder {
 	pod2usage(1) if(!$opts{'vcf'});
 	pod2usage(1) if(!$opts{'sample'});
 	pod2usage(1) if(!$opts{'output'});
+	pod2usage(1) if(!$opts{'panel'});
 	$opts{threads} = 1 unless defined $opts{threads};
 	return \%opts;
 	}

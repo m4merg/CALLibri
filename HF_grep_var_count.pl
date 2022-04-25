@@ -73,6 +73,7 @@ sub head {
 				}
 			#my $freq = $altCountSum/($refCountSum + $altCountSum);
 			#print "$index\t$freq\n";
+			$Sample->{allele}->{$index} = undef; #Free memory
 			}
 		}
 	exit;

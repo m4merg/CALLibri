@@ -156,11 +156,10 @@ sub select_amplicon {
         my $Variation           = shift;
         my $alignment           = shift;
         my $amplicons = $Variation->{amplicons};
+	my ($ref, $match, $query) = $alignment->padded_alignment;
+	$match =~ s/^\s+|\s+$//g;
         if (scalar @{$amplicons} eq 0) {
                 return undef;
-                } elsif ((scalar @{$amplicons}) eq 1) {
-                my $name = $Variation->{contig} . ":" . $amplicons->[0]->[0] . "-" . $amplicons->[0]->[1];
-                return $name;
                 }
         my $min = 3000000000;
         my $selection;
@@ -172,6 +171,8 @@ sub select_amplicon {
                         $selection = $Amplicon;
                         }
                 }
+	my $overlap = min($alignment->end, $selection->[1]) - max($alignment->start, $selection->[0]);
+	return undef if $overlap < 0.5*length($match);
         my $name = $Variation->{contig} . ":" . $selection->[0] . "-" . $selection->[1];
         return $name;
         }
@@ -265,10 +266,11 @@ sub pipeline {
 			#print STDERR "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
 			next if (Score->new($qscore)->phred) < 15;
 			my $read;
-			$read->{name}           = $alignment->qname;
+			#$read->{name}           = $alignment->qname;
 			$read->{BQ}             = $qscore;
 			$read->{strand}         = $alignment->strand;
 			$read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
+			next unless defined ($read->{amplicon});
 			#print STDERR "  -------   ",$CandidateVariation->{ref},"\n";
 			#print STDERR "  -------   ",$CandidateVariation->{alt},"\n";
 			#!T2QOU:03477:01058
@@ -385,7 +387,7 @@ sub get_stat { # see pipeline function
 	$stat->{query} = $query;
         $stat->{aps} = $aps; $stat->{ape} = $ape;
         $stat->{qps} = $qps; $stat->{qpe} = $qpe;
-	$stat->{match_around} = ($aps < 2 ? substr($match, 0, $aps) : substr($match, $aps - 2, 2)).'-'.($ape < length($match) ? substr($match, $ape, 2) : "");
+	$stat->{match_around} = ($aps < 1 ? substr($match, 0, $aps) : substr($match, $aps - 1, 1)).'-'.($ape < length($match) ? substr($match, $ape, 1) : "");
 
         return $stat;
         }

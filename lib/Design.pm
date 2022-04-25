@@ -86,7 +86,7 @@ sub load_VarDict {
 					}
 				}
 			die "Multiple maps to segments for mutation $mas[0]:$mas[1]$mas[3]>$alt\n" if $count > 1;
-			warn "Mutation $mas[0]:$mas[1]$mas[3]>$alt falls out from designed amplicons - it will be ignored\n" if $count eq 0;
+			#warn "Mutation $mas[0]:$mas[1]$mas[3]>$alt falls out from designed amplicons - it will be ignored\n" if $count eq 0;
 			}
 		}
 	close $vcf_fh;

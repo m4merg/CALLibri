@@ -46,7 +46,10 @@ sub make_call {
 	my $pval_calc_seed = generate_seed();
 	$options->{pval_calc_seed} = $pval_calc_seed;
 	
-	my %group_seeds;
+	my $test_folder = $options->{test_folder};
+	my $current_dir = $options->{current_dir};
+
+	my $group_seeds = {};
 	my $group_seed_count = 0;
 	my $group_seed_counter = 1;
 	open (my $pval_calc_fh, ">".$options->{test_folder}."/ppb_$pval_calc_seed.in.$group_seed_counter");
@@ -57,7 +60,7 @@ sub make_call {
 		my $ad = [];
 		my $dp = [];
 		my $seed = generate_seed();
-		$group_seeds{$seed} = {'index' => $index};
+		$group_seeds->{$seed} = {'index' => $index};
 		foreach my $job_element (grep(/$index\@/, (keys %{$job_list}))) {
 			my ($altCnt, $depth, $alpha_val, $beta_val, $mean_val);
 			unless (defined $sample_data->{$job_element}) {
@@ -67,21 +70,21 @@ sub make_call {
 				$depth  = $sample_data->{$job_element}->{depth};
 				}
 			if (defined($beta->{$job_element})) {
-				$alpha_val  = $beta{$job_element}->{alpha};
-				$beta_val   = $beta{$job_element}->{beta};
-				$mean_val   = $beta{$job_element}->{mean};
+				$alpha_val  = $beta->{$job_element}->{alpha};
+				$beta_val   = $beta->{$job_element}->{beta};
+				$mean_val   = $beta->{$job_element}->{mean};
 				} else {
 				$alpha_val  = 'NA';
 				$beta_val   = 'NA';
 				$mean_val   = 'NA';
 				}
 			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
-			print $log_fh "$index\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
+			#print $log_fh "$index\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
 			++$group_seed_count;
 			}
 		if ($group_seed_count > 3000) {
 			close $pval_calc_fh;
-			$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter] );
+			$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter, $current_dir, $test_folder] );
 			$group_seed_count = 0;
 			$group_seed_counter += 1;
 			open ($pval_calc_fh, ">".$options->{test_folder}."/ppb_$pval_calc_seed.in.$group_seed_counter");
@@ -90,11 +93,11 @@ sub make_call {
 		}
 	close $pval_calc_fh;
 	if ($group_seed_count > 0) {
-		$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter] );
+		$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter, $current_dir, $test_folder] );
 		}
 	$work_PPB->end;
 	$_->join for threads->list;
-
+	
 	`cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total`;
 	`cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed`;
 	return $group_seeds;
@@ -130,9 +133,9 @@ sub print_results {
 		chomp;
 		my @mas = split/\t/;
 		my $pval = $mas[1];
-		$pval = ((-1) * int(10*log(min(1, ($pval * $panel_size)))/log(10))/1) unless $pval eq 'NA';
+		$pval = ((-1) * int(10*log(min(1, ($pval * ($options->{panel_size}))))/log(10))/1) unless $pval eq 'NA';
 		my $i = 0;
-		my $index  = $group_seeds{$mas[0]}->{index};
+		my $index  = $group_seeds->{$mas[0]}->{index};
 		print "$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}.";AODA$i=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
 	        }
 	
@@ -148,7 +151,7 @@ sub get_sample_data {
 	while (<CDATA>) {
 		chomp;
 		my @mas = split/\t/;
-		my $job_element = "$mas[0]@$mas[1]@mas[2]";
+		my $job_element = "$mas[0]\@$mas[1]\@$mas[2]";
 		$sample_data->{$job_element} = {};
 		$sample_data->{$job_element}->{altCnt} = $mas[3];
 		$sample_data->{$job_element}->{depth} = $mas[4];
@@ -186,19 +189,21 @@ sub get_job_list {
 	open (VCF, "<".$options->{vcf});
 	
 	my $job_list = {};
+	my $cnt = 0;
 	while (<VCF>) {
 		chomp;
 		next if m!^#!;
 		my @mas = split/\t/;
-		my @alt_array = split/\t/;
+		my @alt_array = split/,/,$mas[4];
 		foreach my $alt (@alt_array) {
+			++$cnt;
 			my $index = "$mas[0]:$mas[1]".uc($mas[3]).">".uc($alt);
-			foreach my $job_element (keys $sample_data) {
+			foreach my $job_element (keys %{$sample_data}) {
 				if ($job_element =~ /$index\@/) {
 					$job_list->{$job_element} = 1;
 					}
 				}
-			foreach my $job_element (keys $beta) {
+			foreach my $job_element (keys %{$beta}) {
 				if ($job_element =~ /$index\@/) {
 					$job_list->{$job_element} = 1;
 					}
@@ -211,11 +216,18 @@ sub get_job_list {
 	return $job_list;
 	}
 
+sub get_panel_size {
+	my $options = shift;
+	$options->{panel_size} = 1;
+	}
+
 sub run {
-	my $optiosn = shift;
+	my $options = shift;
 	my $sample_data = get_sample_data($options);
 	my $beta = get_beta($options);
 	my $job_list = get_job_list($options, $sample_data, $beta);
+
+	get_panel_size($options);
 	my $group_seeds = make_call($options, $sample_data, $beta, $job_list);
 	print_results($options, $group_seeds);
 	}
