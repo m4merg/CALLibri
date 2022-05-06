@@ -107,13 +107,11 @@ sub read_count_data {
 	return ($sample_data, $job_list);
 	}
 
-
 sub fitting_distributions {
 	my $options = shift;
 	my $sample_data = shift;
 	my $job_list = shift;
 	
-	threads->create( \&worker_YU ) for 1 .. ($options->{threads});
 	my $beta;
 	foreach my $index (uniq(map {$_ = substr($_, 0, index($_, '@'))} keys %{$job_list})) {
 		foreach my $job_element (grep(/$index/, (keys %{$job_list}))) {
@@ -135,13 +133,20 @@ sub fitting_distributions {
 				print SAMPLEOUTPUT "",$sample_data->{$sample}->{$job_element}->{altCnt},"\t",$sample_data->{$sample}->{$job_element}->{depth},"\t",$sample_data->{$sample}->{$job_element}->{weight},"\n";
 				}
 			close SAMPLEOUTPUT;
-			
-			my $test_folder = $options->{test_folder};
-			my $current_dir = $options->{current_dir};
-			$work_YU->enqueue( [$seed, $test_folder, $current_dir] );
 			}
 		}
 	
+	$sample_data = undef;
+	$job_list = undef;
+
+	threads->create( \&worker_YU ) for 1 .. ($options->{threads});
+
+	foreach my $seed (keys %{$beta}) {
+		my $test_folder = $options->{test_folder};
+		my $current_dir = $options->{current_dir};
+		$work_YU->enqueue( [$seed, $test_folder, $current_dir] );
+		}
+
 	$work_YU->end;
 	$_->join for threads->list;
 
