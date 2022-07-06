@@ -261,7 +261,7 @@ while (<PVALTOTAL>) {
 	my $i = 0;
 	my $index  = $group_seeds{$mas[0]}->{index};
 	my $sample = $group_seeds{$mas[0]}->{sample};
-	print "$sample\t$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODDP$i=".$_->{P}.";AODA$i=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
+	print "$sample\t$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}.";AODA$i=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
         }
 
 close PVALTOTAL;

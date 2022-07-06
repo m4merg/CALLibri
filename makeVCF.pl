@@ -29,11 +29,23 @@ sub create_vcf {
 	open (CALL_DATA, "<".$options->{input});
 	open (VCF, ">".$options->{output});
 	
-
+	my $sample = $options->{sample};
+	my $sam_header = `samtools view -H $sample | grep "^\@SQ"`;
+	my @contig;
+	foreach my $arg (split/\n/, $sam_header) {
+		my @mas = split/\t|\s+/, $arg;
+		$mas[1] =~ s/^SN://;
+		$mas[2] =~ s/^LN://;
+		push @contig, "##contig=<ID=$mas[1],length=$mas[2],assembly=unknown>"
+		}
 	print VCF "##fileformat=VCFv4.1\n";
+	$year = 1900 + $year;
+	$mon  = (length($mon+1) eq 1 ? "0".($mon+1) : "".($mon+1)."");
+	$mday = (length($mday) eq 1 ? "0$mday" : "$mday");
 	print VCF "##fileDate=$year$mon$mday\n";
 	print VCF "##source=AODcall\n";
 	print VCF "##content=AODcall non-polymorphism variant calls\n";
+	print VCF "",join("\n", @contig),"\n";
 	print VCF "##INFO=<ID=AODAD,Number=.,Type=Integer,Description=\"Total allelic depths for the ref and alt alleles in the order listed across all read groups\">\n";
 
 	print VCF "##INFO=<ID=AODAD1,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 1st group of reads\">\n";
@@ -41,10 +53,10 @@ sub create_vcf {
 	print VCF "##INFO=<ID=AODAD3,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 3d group of reads\">\n";
 	print VCF "##INFO=<ID=AODAD4,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 4th group of reads\">\n";
 	
-	print VCF "##INFO=<ID=AODDP1,Number=.,Type=String,Description=\"P value for variant across reads in the 1st read group\">\n";
-	print VCF "##INFO=<ID=AODDP2,Number=.,Type=String,Description=\"P value for variant across reads in the 2d read group\">\n";
-	print VCF "##INFO=<ID=AODDP3,Number=.,Type=String,Description=\"P value for variant across reads in the 3d read group\">\n";
-	print VCF "##INFO=<ID=AODDP4,Number=.,Type=String,Description=\"P value for variant across reads in the 4th read group\">\n";
+	print VCF "##INFO=<ID=AODP1,Number=.,Type=String,Description=\"P value for variant across reads in the 1st read group\">\n";
+	print VCF "##INFO=<ID=AODP2,Number=.,Type=String,Description=\"P value for variant across reads in the 2d read group\">\n";
+	print VCF "##INFO=<ID=AODP3,Number=.,Type=String,Description=\"P value for variant across reads in the 3d read group\">\n";
+	print VCF "##INFO=<ID=AODP4,Number=.,Type=String,Description=\"P value for variant across reads in the 4th read group\">\n";
 	
 	print VCF "##INFO=<ID=AODA1,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 1\">\n";
 	print VCF "##INFO=<ID=AODA2,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 2\">\n";
@@ -130,11 +142,13 @@ sub option_builder {
 		'h|help'        => \$opts{'h'},
 		'input|input=s'   => \$opts{'input'},
 		'output|output=s' => \$opts{'output'},
+		'sample|sample=s' =>\$opts{'sample'},
 		'seed|seed=s'   => \$opts{'seed'}
 	);
 	pod2usage(0) if($opts{'h'});
 	pod2usage(1) if(!$opts{'input'});
 	pod2usage(1) if(!$opts{'output'});
+	pod2usage(1) if(!$opts{'sample'});
 	return \%opts;
 	}
 
@@ -170,8 +184,9 @@ CREATE VCF FILE FROM AOD_AMPL_CALL DATA
 
 Options:
 
-    -input   [REQUIRED] - input
-    -output  [OPTIONAL] - output
+    -input   [REQUIRED] - input .cdata file
+    -output  [REQUIRED] - output .vcf file
+    -sample  [REQUIRED] - input .bam file
 
 
 
