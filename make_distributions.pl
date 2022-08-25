@@ -34,7 +34,7 @@ sub worker_HF {
 		my $test_folder	= $passed->[4];
 		my $current_dir	= $passed->[5];
 		
-		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf > $test_folder/$seed";
+		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf | grep 'ALL' > $test_folder/$seed";
 		`$cmd`;
 		}
 	}

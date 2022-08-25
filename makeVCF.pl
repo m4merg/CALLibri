@@ -86,8 +86,12 @@ sub create_vcf {
 		my @info = split/;/, $mas[2];
 		foreach my $arg (@info) {
 			if ($arg =~ /AODAD.*=(\d+),(\d+)/) {
-				$AD += $1;
-				$RD += $2;
+				if ($arg =~ /_/) { # SKIPPING TAGS
+
+					} else {
+					$AD += $1;
+					$RD += $2;
+					}
 				}
 			}
 		$AD = 0 unless defined $AD;

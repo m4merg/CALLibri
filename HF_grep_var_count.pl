@@ -38,6 +38,12 @@ $| = 1;
 my $qscore_averaging_range      = 1; # Phred quality score is average in this window/ window length is 1+2*$qscore_averaging_range.
 my $qscore_min  = 16; # Ignore positions with base quality score lower then this value;
 my $minimum_coverage = 2; # Positions with coverage lower this value will be ignored (defined as non-detectable)
+my @knownTags = qw(ShortOverlap);
+my %CLEAR;
+foreach my $tag (@knownTags) {
+	$CLEAR{$tag} = 0;
+	}
+
 $qscore_min = Score->new($qscore_min);
 
 head();
@@ -63,12 +69,20 @@ sub head {
 			#print STDERR (scalar @{$Sample->allele($index)->{reads}}),"\n";
 			foreach my $amplicon (uniq (map {$_->{amplicon}} @{$Sample->allele($index)->{reads}})) {
 				foreach my $strand (qw(-1 1)) {
-					#my $refCount = $Sample->allele($index)->readCount({vote => 'ref', strand => $strand, amplicon => $amplicon});
-					my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon});
-					my $DP = scalar (grep {($_->{amplicon} eq $amplicon)and($_->{strand} eq $strand)} @{$Sample->allele($index)->{reads}});
-					#next if $refCount + $altCount <= 0;
-					#print STDERR Dumper $Sample->allele($index);
-					print "$index\t$amplicon\t$strand\t$altCount\t$DP\n";
+					foreach my $tag (@knownTags) {
+						my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon, tags => {$tag => 1}});
+						#my $DP = scalar (grep {($_->{amplicon} eq $amplicon)and($_->{strand} eq $strand)} @{$Sample->allele($index)->{reads}});
+						my $DP = $Sample->allele($index)->readCount({vote => 'all', strand => $strand, amplicon => $amplicon, tags => {$tag => 1}});
+						#next if $refCount + $altCount <= 0;
+						#print STDERR Dumper $Sample->allele($index);
+						print "$index\t$amplicon\t$strand\t$altCount\t$DP\t$tag\n";
+						}
+					my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon, tags => {%CLEAR}});
+					my $DP = $Sample->allele($index)->readCount({vote => 'all', strand => $strand, amplicon => $amplicon, tags => {%CLEAR}});
+					print "$index\t$amplicon\t$strand\t$altCount\t$DP\tCLEAR\n";
+					$altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon});
+					$DP = $Sample->allele($index)->readCount({vote => 'all', strand => $strand, amplicon => $amplicon});
+					print "$index\t$amplicon\t$strand\t$altCount\t$DP\tALL\n";
 					}
 				}
 			#my $freq = $altCountSum/($refCountSum + $altCountSum);

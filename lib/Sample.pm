@@ -20,6 +20,7 @@ my $string_edit_calc = __DIR__ . "/lev.py";
 
 our @ISA = qw(Exporter);
 our @EXPORT     = qw//;
+my @knownTags = qw(ShortOverlap);
 
 sub new {
 	my $class	= shift;
@@ -172,9 +173,20 @@ sub select_amplicon {
                         }
                 }
 	my $overlap = min($alignment->end, $selection->[1]) - max($alignment->start, $selection->[0]);
+	my $distance_from_insert = min(
+				abs(min($alignment->end, $selection->[1]) - $selection->[1]),
+				abs(max($alignment->start, $selection->[0]) - $selection->[0])
+				);
+	my $seq_length = length($alignment->query->dna);
+	#print STDERR "OVERLAP - $overlap\t$seq_length\t$distance_from_insert\n";
+	my @tags;
+	if ($overlap - $distance_from_insert < 40) {
+		push @tags, "ShortOverlap";
+		}
 	return undef if $overlap < 0.5*length($match);
+	#print STDERR "PASS\n";
         my $name = $Variation->{contig} . ":" . $selection->[0] . "-" . $selection->[1];
-        return $name;
+        return ($name, [@tags]);
         }
 
 sub normalizeBQ {
@@ -263,26 +275,43 @@ sub pipeline {
 			#print STDERR Dumper $stat;
 			next unless defined($stat);
 			my $qscore = $class->get_qscore($alignment, $stat);
-			#print STDERR "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",Score->new($qscore)->phred,"\n";
+			#print STDERR "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",$alignment->qual,"\t",Score->new($qscore)->phred,"\n";
 			next if (Score->new($qscore)->phred) < 15;
-			my $read;
+			my $read;my $tags = [];
 			#$read->{name}           = $alignment->qname;
-			$read->{BQ}             = $qscore;
-			$read->{strand}         = $alignment->strand;
-			$read->{amplicon}       = select_amplicon($CandidateVariation, $alignment);
+			$read->{BQ}			= $qscore;
+			$read->{strand}			= $alignment->strand;
+			($read->{amplicon}, $tags)	= select_amplicon($CandidateVariation, $alignment);
+			#print "",join("\t", @{$tags}),"\n";
+			#print "",($tags ? join("\t", @{$tags}) : "NA"),"\n";
 			next unless defined ($read->{amplicon});
 			#print STDERR "  -------   ",$CandidateVariation->{ref},"\n";
 			#print STDERR "  -------   ",$CandidateVariation->{alt},"\n";
 			#!T2QOU:03477:01058
 			#print STDERR Dumper $CandidateVariation;
 			#print STDERR "",substr($stat->{match}, $stat->{aps}, $stat->{ape}-$stat->{aps}),"\n";
+			if ($tags) {
+				$read->{tags} = {};
+				foreach my $key (@{$tags}) {
+					$read->{tags}->{$key} = 1;
+					}
+				} else{
+				$read->{tags} = {};
+				}
+			foreach my $key (@knownTags) {
+				if (not(defined($read->{tags}->{$key}))) {
+					$read->{tags}->{$key} = 0;
+					}
+				}
 			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt})) and ($stat->{match_around} =~ /^\|*-\|*$/)) {
 					$read->{vote} = 'alt';
+					$read->{MQ} = $alignment->qual;
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					#print STDERR "ALT\n";
 					#print STDERR Dumper $stat;
 				} elsif ($stat->{match_var} =~ /^\|*$/) {
 					$read->{vote} = 'ref';
+					$read->{MQ} = $alignment->qual;
 					#print STDERR "REF\n";
 					#print STDERR Dumper $stat;
 					$class->allele($CandidateVariation->{index})->add_read($read);

@@ -17,6 +17,7 @@ use Pod::Usage;
 
 
 my $work_PPB  = Thread::Queue->new;
+my @knownTags = qw(ShortOverlap);
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
@@ -54,41 +55,51 @@ sub make_call {
 	my $group_seed_counter = 1;
 	open (my $pval_calc_fh, ">".$options->{test_folder}."/ppb_$pval_calc_seed.in.$group_seed_counter");
 	threads->create( \&worker_PPB ) for 1 .. ($options->{threads});
-	
+	#print Dumper $job_list;
 	foreach my $index (uniq(map {$_ = substr($_, 0, index($_, '@'))} keys %{$job_list})) {
-		my $pval = [];
-		my $ad = [];
-		my $dp = [];
-		my $seed = generate_seed();
-		$group_seeds->{$seed} = {'index' => $index};
-		foreach my $job_element (grep(/$index\@/, (keys %{$job_list}))) {
-			my ($altCnt, $depth, $alpha_val, $beta_val, $mean_val);
-			unless (defined $sample_data->{$job_element}) {
-				$altCnt = "NA";$depth = "NA";
-				} else {
-				$altCnt = $sample_data->{$job_element}->{altCnt};
-				$depth  = $sample_data->{$job_element}->{depth};
+		#print "NEW index\n";
+		foreach my $tag (@knownTags, "CLEAR", "ALL") {
+		#foreach my $tag ("ALL") {
+			#print "NEW tag\n";
+			my $pval = [];
+			my $ad = [];
+			my $dp = [];
+			my $seed = generate_seed();
+	
+			$group_seeds->{$seed} = {'index' => $index, "tag" => $tag};
+			#$group_seeds->{$seed} = {'index' => $index};
+			foreach my $job_element (grep(/$index\@/, (keys %{$job_list}))) {
+				#print "NEW ELEMENT\n";
+				my $job_element_tagged = "$job_element@" . $tag;
+				my ($altCnt, $depth, $alpha_val, $beta_val, $mean_val);
+				unless (defined $sample_data->{$job_element_tagged}) {
+					$altCnt = "NA";$depth = "NA";
+					} else {
+					$altCnt = $sample_data->{$job_element_tagged}->{altCnt};
+					$depth  = $sample_data->{$job_element_tagged}->{depth};
+					}
+				if (defined($beta->{$job_element})) {
+					$alpha_val  = $beta->{$job_element}->{alpha};
+					$beta_val   = $beta->{$job_element}->{beta};
+					$mean_val   = $beta->{$job_element}->{mean};
+					} else {
+					$alpha_val  = 'NA';
+					$beta_val   = 'NA';
+					$mean_val   = 'NA';
+					}
+				#print "$seed\t$job_element\t$job_element_tagged\n";
+				print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
+				#print $log_fh "$index\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
+				++$group_seed_count;
 				}
-			if (defined($beta->{$job_element})) {
-				$alpha_val  = $beta->{$job_element}->{alpha};
-				$beta_val   = $beta->{$job_element}->{beta};
-				$mean_val   = $beta->{$job_element}->{mean};
-				} else {
-				$alpha_val  = 'NA';
-				$beta_val   = 'NA';
-				$mean_val   = 'NA';
+			if ($group_seed_count > 3000) {
+				close $pval_calc_fh;
+				$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter, $current_dir, $test_folder] );
+				$group_seed_count = 0;
+				$group_seed_counter += 1;
+				open ($pval_calc_fh, ">".$options->{test_folder}."/ppb_$pval_calc_seed.in.$group_seed_counter");
+	
 				}
-			print $pval_calc_fh "$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
-			#print $log_fh "$index\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
-			++$group_seed_count;
-			}
-		if ($group_seed_count > 3000) {
-			close $pval_calc_fh;
-			$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter, $current_dir, $test_folder] );
-			$group_seed_count = 0;
-			$group_seed_counter += 1;
-			open ($pval_calc_fh, ">".$options->{test_folder}."/ppb_$pval_calc_seed.in.$group_seed_counter");
-
 			}
 		}
 	close $pval_calc_fh;
@@ -107,7 +118,8 @@ sub print_results {
 	my $options = shift;
 	my $group_seeds = shift;
 	my $pval_calc_seed = $options->{pval_calc_seed};
-
+	#print Dumper $group_seeds;
+	
 	my @pval_by_group;
 	open (PVALBYGROUP, "<".$options->{test_folder}."/ppb_$pval_calc_seed.out.detailed");
 	
@@ -129,14 +141,36 @@ sub print_results {
 	
 	open (PVALTOTAL, "<".$options->{test_folder}."/ppb_$pval_calc_seed.out.total");
 	
+	my %uniq_indexes;
+	my %printed_indexes;
+	foreach my $key (keys %{$group_seeds}) {
+		$uniq_indexes{$group_seeds->{$key}->{index}} = 1;
+		}
 	while (<PVALTOTAL>) {
 		chomp;
 		my @mas = split/\t/;
+		next if ($group_seeds->{$mas[0]}->{tag} ne 'ALL');
 		my $pval = $mas[1];
 		$pval = ((-1) * int(10*log(min(1, ($pval * ($options->{panel_size}))))/log(10))/1) unless $pval eq 'NA';
-		my $i = 0;
 		my $index  = $group_seeds->{$mas[0]}->{index};
-		print "$index\t$pval\t",join(';', map {++$i; "AODAD$i=".$_->{AD}.",".$_->{DP}.";AODP$i=".$_->{P}.";AODA$i=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
+		next if (defined($printed_indexes{$index}));
+		my @info;
+		foreach my $key (keys %{$group_seeds}) {
+			my $i = 0;
+			next if $index ne $group_seeds->{$key}->{index};
+			my $tag = $group_seeds->{$key}->{tag};
+			$tag = "_$tag" unless $tag eq 'ALL';
+			$tag = "" if $tag eq 'ALL';
+			my @info_local = map {++$i;"AODAD${i}$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}$tag=".$_->{P}} (grep {$_->{seed} eq $key} @pval_by_group);
+			push @info, @info_local;
+			#foreach my $element (@pval_by_group) {
+			#	next if ($element->{seed})
+			#	}
+			#print "$index\t",join(";", @info_local),"\n";
+			#print "$index\t$pval\t",join(';', map {++$i; "AODAD${i}_$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}_tag=".$_->{P}.";AODA${i}=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $mas[0]} @pval_by_group)),"\n";
+			}
+		print "$index\t$pval\t",join(";", @info),"\n";
+		$printed_indexes{$index} = 1;
 	        }
 	
 	close PVALTOTAL;
@@ -151,7 +185,7 @@ sub get_sample_data {
 	while (<CDATA>) {
 		chomp;
 		my @mas = split/\t/;
-		my $job_element = "$mas[0]\@$mas[1]\@$mas[2]";
+		my $job_element = "$mas[0]\@$mas[1]\@$mas[2]\@$mas[5]";
 		$sample_data->{$job_element} = {};
 		$sample_data->{$job_element}->{altCnt} = $mas[3];
 		$sample_data->{$job_element}->{depth} = $mas[4];
@@ -200,7 +234,11 @@ sub get_job_list {
 			my $index = "$mas[0]:$mas[1]".uc($mas[3]).">".uc($alt);
 			foreach my $job_element (keys %{$sample_data}) {
 				if ($job_element =~ /$index\@/) {
-					$job_list->{$job_element} = 1;
+					my $job_element_untagged = $job_element;
+					foreach my $tag (@knownTags, "ALL", 'CLEAR') {
+						$job_element_untagged =~ s/\@$tag//;
+						}
+					$job_list->{$job_element_untagged} = 1;
 					}
 				}
 			foreach my $job_element (keys %{$beta}) {
@@ -212,7 +250,7 @@ sub get_job_list {
 		}
 	
 	close VCF;
-
+	
 	return $job_list;
 	}
 

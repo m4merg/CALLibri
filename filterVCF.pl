@@ -15,12 +15,30 @@ use Thread::Queue;
 use Getopt::Long 'GetOptions';
 use Pod::Usage;
 
+my @knownTags = qw(ShortOverlap);
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
         my $str = join '' => map $set[rand @set], 1 .. 15;
         return $str
         }
+
+sub pass_by_tag {
+	my $options = shift;
+	my $info = shift;
+	my $tag = shift;
+	my @info_mas = split/;/, $info;
+	my $filter = 1;
+	if ($tag eq 'ALL') {$tag = ''} else {$tag = "_$tag"}
+
+	foreach my $arg (@info_mas) {
+		if ($arg =~ /AODP\d+$tag=(\d+)/) {
+			my $local = $1;
+			if ($local < $options->{local}) {$filter = 0}
+			}
+		}
+	return $filter;
+	}
 
 sub filter_vcf {
 	my $options = shift;
@@ -44,15 +62,26 @@ sub filter_vcf {
 			}
 		my @mas = split/\t/;
 		my $global = $mas[5];
-		my $filter = 'PASS';
-		my @info = split/;/, $mas[7];
-		foreach my $arg (@info) {
-			if ($arg =~ /AODP\d+=(\d+)/) {
-				my $local = $1;
-				if ($local < $options->{local}) {$filter = 'FAIL'}
+		my $filter;
+		#my @info = split/;/, $mas[7];
+		#foreach my $arg (@info) {
+		#	if ($arg =~ /AODP\d+=(\d+)/) {
+		#		my $local = $1;
+		#		if ($local < $options->{local}) {$filter = 'FAIL'}
+		#		}
+		#	}
+		#$filter = 'FAIL' if $global < $options->{global};
+		if ((pass_by_tag($options, $mas[7], 'ALL'))and(pass_by_tag($options, $mas[7], 'CLEAR'))) {
+			$filter = 'PASS'
+			} else {
+			my @passed_tags;
+			foreach my $tag (@knownTags) {
+				if (pass_by_tag($options, $mas[7], $tag)) {
+					push @passed_tags, $tag;
+					}
 				}
+			$filter = join(';', @passed_tags);
 			}
-		$filter = 'FAIL' if $global < $options->{global};
 		$mas[6] = $filter;
 		my $out_string = join("\t", @mas);
 		print WRITE "$out_string\n";

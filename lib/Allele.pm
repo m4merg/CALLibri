@@ -12,6 +12,8 @@ use Mojo::Base -base;
 my $string_edit_calc = __DIR__ . "/lev.py";
 our @ISA = qw(Exporter);
 our @EXPORT     = qw//;
+my @known_tags = qw(ShortOverlap);
+
 
 sub new {
 	my $class = shift;
@@ -51,9 +53,22 @@ sub readCount {
 	if (defined($info->{BQ})) {
 		$reads = [grep {$_->{BQ} <= $info->{BQ}} @{$reads}];
 		}
+	if (defined($info->{tags})) {
+		foreach my $key (keys %{$info->{tags}}) {
+			#print "$key\t".$info->{tags}->{$key},"\n";
+			#print Dumper $reads;
+			$reads = [grep {$_->{tags}->{$key} eq $info->{tags}->{$key}} @{$reads}];
+			#print "###########################################\n\n\n########################################\n";
+			#print Dumper $reads;
+			}
+		}
 	if (defined($info->{vote})) {
-		$opposite_reads = [grep {$_->{vote} ne $info->{vote}} @{$reads}];
-		$reads = [grep {$_->{vote} eq $info->{vote}} @{$reads}];
+		if ($info->{vote} eq 'all') {
+			return (scalar(@{$reads}));
+			} else {
+			$opposite_reads = [grep {$_->{vote} ne $info->{vote}} @{$reads}];
+			$reads = [grep {$_->{vote} eq $info->{vote}} @{$reads}];
+			}
 		}
 	if (scalar @{$reads} > 0) {
 		$count += $class->readCountCalc($reads, 'positive', 'probability');
