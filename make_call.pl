@@ -159,9 +159,18 @@ sub print_results {
 			my $i = 0;
 			next if $index ne $group_seeds->{$key}->{index};
 			my $tag = $group_seeds->{$key}->{tag};
-			$tag = "_$tag" unless $tag eq 'ALL';
-			$tag = "" if $tag eq 'ALL';
-			my @info_local = map {++$i;"AODAD${i}$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}$tag=".$_->{P}} (grep {$_->{seed} eq $key} @pval_by_group);
+			my @info_local;
+			if ($tag eq 'ALL') {
+				$tag = '';
+				@info_local = map {++$i;"AODAD${i}$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}$tag=".$_->{P}.";AODA${i}=".$_->{A}.";AODB$i=".$_->{B}} (grep {$_->{seed} eq $key} @pval_by_group);
+				} else {
+				$tag = "_$tag" unless $tag eq 'ALL';
+				@info_local = map {++$i;"AODAD${i}$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}$tag=".$_->{P}} (grep {$_->{seed} eq $key} @pval_by_group);
+				}
+
+			#$tag = "_$tag" unless $tag eq 'ALL';
+			#$tag = "" if $tag eq 'ALL';
+			#my @info_local = map {++$i;"AODAD${i}$tag=".$_->{AD}.",".$_->{DP}.";AODP${i}$tag=".$_->{P}} (grep {$_->{seed} eq $key} @pval_by_group);
 			push @info, @info_local;
 			#foreach my $element (@pval_by_group) {
 			#	next if ($element->{seed})

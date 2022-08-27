@@ -48,25 +48,30 @@ sub create_vcf {
 	print VCF "",join("\n", @contig),"\n";
 	print VCF "##INFO=<ID=AODAD,Number=.,Type=Integer,Description=\"Total allelic depths for the ref and alt alleles in the order listed across all read groups\">\n";
 
-	print VCF "##INFO=<ID=AODAD1,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 1st group of reads\">\n";
-	print VCF "##INFO=<ID=AODAD2,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 2d group of reads\">\n";
-	print VCF "##INFO=<ID=AODAD3,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 3d group of reads\">\n";
-	print VCF "##INFO=<ID=AODAD4,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 4th group of reads\">\n";
+	#print VCF "##INFO=<ID=AODAD1,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 1st group of reads\">\n";
+	#print VCF "##INFO=<ID=AODAD2,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 2d group of reads\">\n";
+	#print VCF "##INFO=<ID=AODAD3,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 3d group of reads\">\n";
+	#print VCF "##INFO=<ID=AODAD4,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the 4th group of reads\">\n";
 	
-	print VCF "##INFO=<ID=AODP1,Number=.,Type=String,Description=\"P value for variant across reads in the 1st read group\">\n";
-	print VCF "##INFO=<ID=AODP2,Number=.,Type=String,Description=\"P value for variant across reads in the 2d read group\">\n";
-	print VCF "##INFO=<ID=AODP3,Number=.,Type=String,Description=\"P value for variant across reads in the 3d read group\">\n";
-	print VCF "##INFO=<ID=AODP4,Number=.,Type=String,Description=\"P value for variant across reads in the 4th read group\">\n";
+	foreach my $group (qw(1 2 3 4)) {
+		print VCF "##INFO=<ID=AODAD$group,Number=.,Type=String,Description=\"Allelic depths for the ref and alt alleles in the order listed in the read group $group\">\n";
+		print VCF "##INFO=<ID=AODP$group,Number=.,Type=String,Description=\"P value for variant across reads in the read group number $group\">\n";
+		print VCF "##INFO=<ID=AODA$group,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group $group\">\n";
+		print VCF "##INFO=<ID=AODB$group,Number=.,Type=String,Description=\"Beta value of beta distibution for read group $group\">\n";
+		}
+	#print VCF "##INFO=<ID=AODP2,Number=.,Type=String,Description=\"P value for variant across reads in the 2d read group\">\n";
+	#print VCF "##INFO=<ID=AODP3,Number=.,Type=String,Description=\"P value for variant across reads in the 3d read group\">\n";
+	#print VCF "##INFO=<ID=AODP4,Number=.,Type=String,Description=\"P value for variant across reads in the 4th read group\">\n";
 	
-	print VCF "##INFO=<ID=AODA1,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 1\">\n";
-	print VCF "##INFO=<ID=AODA2,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 2\">\n";
-	print VCF "##INFO=<ID=AODA3,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 3\">\n";
-	print VCF "##INFO=<ID=AODA4,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 4\">\n";
+	#print VCF "##INFO=<ID=AODA1,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 1\">\n";
+	#print VCF "##INFO=<ID=AODA2,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 2\">\n";
+	#print VCF "##INFO=<ID=AODA3,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 3\">\n";
+	#print VCF "##INFO=<ID=AODA4,Number=.,Type=String,Description=\"Alpha value of beta distibution for read group 4\">\n";
 	
-	print VCF "##INFO=<ID=AODB1,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 1\">\n";
-	print VCF "##INFO=<ID=AODB2,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 2\">\n";
-	print VCF "##INFO=<ID=AODB3,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 3\">\n";
-	print VCF "##INFO=<ID=AODB4,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 4\">\n";
+	#print VCF "##INFO=<ID=AODB1,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 1\">\n";
+	#print VCF "##INFO=<ID=AODB2,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 2\">\n";
+	#print VCF "##INFO=<ID=AODB3,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 3\">\n";
+	#print VCF "##INFO=<ID=AODB4,Number=.,Type=String,Description=\"Beta value of beta distibution for read group 4\">\n";
 	
 	print VCF "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n";
 

@@ -30,14 +30,57 @@ sub pass_by_tag {
 	my @info_mas = split/;/, $info;
 	my $filter = 1;
 	if ($tag eq 'ALL') {$tag = ''} else {$tag = "_$tag"}
-
+	
+	my $is_there_not_NA = 0;
 	foreach my $arg (@info_mas) {
-		if ($arg =~ /AODP\d+$tag=(\d+)/) {
+		if ($arg =~ /AODP\d+$tag=(\d+|NA)/) {
 			my $local = $1;
-			if ($local < $options->{local}) {$filter = 0}
+			#print "$tag\t$local\n";
+			if ($local ne 'NA') {$is_there_not_NA = 1} else {next}
+			if ($local < $options->{local}) {
+				#print "HERE$tag\n";
+				$filter = 0
+				}
 			}
 		}
+	$filter = 0 if $is_there_not_NA eq 0;
+	#print "FILTER$tag\t$filter\n";
 	return $filter;
+	}
+
+sub get_AF_by_tag {
+	my $options = shift;
+	my $info = shift;
+	my $tag = shift;
+	my @info_mas = split/;/, $info;
+	my $closest = 2;
+	my $result = '0';
+	if ($tag eq 'ALL') {$tag = ''} else {$tag = "_$tag"}
+	
+	foreach my $arg (@info_mas) {
+		if ($arg =~ /AODAD\d+$tag=(\d+),(\d+)/) {
+			my $af = $1/$2;
+			if (abs($af - 0.5) < $closest) {
+				$result = $af;
+				$closest = abs($af - 0.5);
+				}
+			}
+		}
+	return int(10000*$result)/10000;
+	}
+
+sub get_element_from_info {
+	my $info = shift;
+	my $element = shift;
+	#print "$element\n";
+	my @info_mas = split/;/, $info;
+	foreach my $arg (@info_mas) {
+		if ($arg =~ /$element=/) {
+			#print "$arg\n";
+			return $arg;
+			}
+		}
+	return undef;
 	}
 
 sub filter_vcf {
@@ -61,27 +104,38 @@ sub filter_vcf {
 			next;
 			}
 		my @mas = split/\t/;
+		#next unless $mas[1] eq '108114661';
+		#next unless $mas[3] eq 'AT';
 		my $global = $mas[5];
-		my $filter;
-		#my @info = split/;/, $mas[7];
-		#foreach my $arg (@info) {
-		#	if ($arg =~ /AODP\d+=(\d+)/) {
-		#		my $local = $1;
-		#		if ($local < $options->{local}) {$filter = 'FAIL'}
-		#		}
-		#	}
-		#$filter = 'FAIL' if $global < $options->{global};
-		if ((pass_by_tag($options, $mas[7], 'ALL'))and(pass_by_tag($options, $mas[7], 'CLEAR'))) {
+		my $filter = 'FAIL';
+		my @info = split/;/, $mas[7];
+		if (pass_by_tag($options, $mas[7], 'CLEAR')) {
+			#print "HERE1\n";
 			$filter = 'PASS'
 			} else {
 			my @passed_tags;
 			foreach my $tag (@knownTags) {
 				if (pass_by_tag($options, $mas[7], $tag)) {
+					#print "HERE2\t$tag\n";
 					push @passed_tags, $tag;
 					}
 				}
-			$filter = join(';', @passed_tags);
+			if ((scalar @passed_tags) > 0) {
+				$filter = join(';', @passed_tags);
+				}
 			}
+		for (my $i = 1; $i < 10; $i++) {
+			if (defined(get_element_from_info($mas[7], "AODA$i"))) {
+				#print "HERE A \n";
+				#push @info, get_element_from_info($mas[7], "AODA$i");
+				}
+			if (defined(get_element_from_info($mas[7], "AODB$i"))) {
+				#print "HERE B \n";
+				#push @info, get_element_from_info($mas[7], "AODB$i");
+				}
+			}
+		$mas[7] = join(";", (@info, 'AODAF='.get_AF_by_tag($options, $mas[7], 'ALL')));
+
 		$mas[6] = $filter;
 		my $out_string = join("\t", @mas);
 		print WRITE "$out_string\n";
