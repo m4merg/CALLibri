@@ -3,6 +3,7 @@ use warnings;
 use Data::Dumper;
 use Getopt::Long 'GetOptions';
 use Pod::Usage;
+use Math::CDF;
 
 sub get_content {
 	my $input = shift;
@@ -69,6 +70,15 @@ sub get_content {
 	my $data;
 	$data->{changes} = \%changes;
 	$data->{depth} = \%depths;
+
+	my %filter;
+	foreach my $key (keys %changes) {
+		my $score = 1-Math::CDF::ppois($changes{$key}, $depths{$key}*0.0008);
+		$filter{$key} = 'FAIL';
+		$filter{$key} = 'PASS' if $score < 0.0001;
+		$filter{$key} = 'FAIL' if $depths{$key} < 10;
+		}
+	$data->{filter} = \%filter;
 	return $data;
 	}
 
@@ -84,6 +94,8 @@ sub print_header {
 	print $output "##source=mpileup\n";
 	print $output "##INFO=<ID=AD,Number=.,Type=Integer,Description=\"Alternative allele count\">\n";
 	print $output "##INFO=<ID=DP,Number=.,Type=String,Description=\"Depths\">\n";
+	print $output "##FILTER=<ID=PASS,Description=\"PASS\">\n";
+	print $output "##FILTER=<ID=FAIL,Description=\"FAIL\">\n";
 	print $output "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n";
 	}
 
@@ -110,11 +122,12 @@ sub print_content {
 	my $limit = shift;
 	my %changes = %{$data->{changes}};
 	my %depth = %{$data->{depth}};
+	my %filter = %{$data->{filter}};
 	#foreach my $key (sort {$a cmp $b} keys %changes) {
 	foreach my $key (sort {c_2($a, $b) || c_1($a, $b)} keys %changes) {
 		next if $changes{$key} < $limit;
 		if ($key =~ /(\S+):(\d+)(\S+)>(\S+)/) {
-			print $output "$1\t$2\t.\t".uc($3)."\t".uc($4)."\t.\t.\tAD=$changes{$key};DP=$depth{$key}\n";
+			print $output "$1\t$2\t.\t".uc($3)."\t".uc($4)."\t.\t",$filter{$key},"\tAD=$changes{$key};DP=$depth{$key}\n";
 			}
 		}
 	}
