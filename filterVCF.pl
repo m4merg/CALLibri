@@ -33,18 +33,25 @@ sub pass_by_tag {
 	
 	my $is_there_not_NA = 0;
 	foreach my $arg (@info_mas) {
-		if ($arg =~ /AODP\d+$tag=(\d+|NA)/) {
-			my $local = $1;
-			#print "$tag\t$local\n";
+		if ($arg =~ /AODP(\d+)$tag=(\d+|NA)/) {
+			my $number = 1;
+			my $local = $2;
+			if ($local eq 'NA') {
+				foreach my $arg2 (@info_mas) {
+					if ($arg2 =~ /AODAD$number$tag=(\d+),(\d+)/) {
+						if ($2 < 5) {
+							return 0;
+							}
+						}
+					}
+				}
 			if ($local ne 'NA') {$is_there_not_NA = 1} else {next}
 			if ($local < $options->{local}) {
-				#print "HERE$tag\n";
 				$filter = 0
 				}
 			}
 		}
 	$filter = 0 if $is_there_not_NA eq 0;
-	#print "FILTER$tag\t$filter\n";
 	return $filter;
 	}
 
@@ -59,7 +66,10 @@ sub get_AF_by_tag {
 	
 	foreach my $arg (@info_mas) {
 		if ($arg =~ /AODAD\d+$tag=(\d+),(\d+)/) {
-			my $af = $1/$2;
+			my $ad = $1;
+			my $dp = $2;
+			my $af;
+			if ($dp eq 0) {$af = 0} else {$af = $ad/$dp}
 			if (abs($af - 0.5) < $closest) {
 				$result = $af;
 				$closest = abs($af - 0.5);
@@ -72,11 +82,9 @@ sub get_AF_by_tag {
 sub get_element_from_info {
 	my $info = shift;
 	my $element = shift;
-	#print "$element\n";
 	my @info_mas = split/;/, $info;
 	foreach my $arg (@info_mas) {
 		if ($arg =~ /$element=/) {
-			#print "$arg\n";
 			return $arg;
 			}
 		}
@@ -110,13 +118,11 @@ sub filter_vcf {
 		my $filter = 'FAIL';
 		my @info = split/;/, $mas[7];
 		if (pass_by_tag($options, $mas[7], 'CLEAR')) {
-			#print "HERE1\n";
 			$filter = 'PASS'
 			} else {
 			my @passed_tags;
 			foreach my $tag (@knownTags) {
 				if (pass_by_tag($options, $mas[7], $tag)) {
-					#print "HERE2\t$tag\n";
 					push @passed_tags, $tag;
 					}
 				}
@@ -126,15 +132,17 @@ sub filter_vcf {
 			}
 		for (my $i = 1; $i < 10; $i++) {
 			if (defined(get_element_from_info($mas[7], "AODA$i"))) {
-				#print "HERE A \n";
 				#push @info, get_element_from_info($mas[7], "AODA$i");
 				}
 			if (defined(get_element_from_info($mas[7], "AODB$i"))) {
-				#print "HERE B \n";
 				#push @info, get_element_from_info($mas[7], "AODB$i");
 				}
 			}
-		$mas[7] = join(";", (@info, 'AODAF='.get_AF_by_tag($options, $mas[7], 'ALL')));
+		if ($mas[7] =~ /AODAF=/) {
+			$mas[7] = join(";", @info);
+			} else {
+			$mas[7] = join(";", (@info, 'AODAF='.get_AF_by_tag($options, $mas[7], 'ALL')));
+			}
 
 		$mas[6] = $filter;
 		my $out_string = join("\t", @mas);
