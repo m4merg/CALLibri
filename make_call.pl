@@ -31,8 +31,9 @@ sub worker_PPB {
 		my $counter	= $passed->[1];
 		my $current_dir	= $passed->[2];
 		my $test_folder	= $passed->[3];
-
-		my $cmd = `R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$seed.in.$counter $test_folder/ppb_$seed.out.total.p$counter $test_folder/ppb_$seed.out.detailed.p$counter 2> $test_folder/ppb_$seed.log.p$counter`;
+		#print STDERR "STARTED THERAD\n";
+		my $cmd = "R --slave -f $current_dir/lib/ppb.r --args $test_folder/ppb_$seed.in.$counter $test_folder/ppb_$seed.out.total.p$counter $test_folder/ppb_$seed.out.detailed.p$counter 2> $test_folder/ppb_$seed.log.p$counter";
+		#print STDERR "$cmd\n";
 		`$cmd`;
 		}
 	}
@@ -92,7 +93,7 @@ sub make_call {
 				#print $log_fh "$index\t$seed\t$altCnt\t$depth\t$alpha_val\t$beta_val\t$mean_val\t1\n";
 				++$group_seed_count;
 				}
-			if ($group_seed_count > 3000) {
+			if ($group_seed_count > 100) {
 				close $pval_calc_fh;
 				$work_PPB->enqueue( [$pval_calc_seed, $group_seed_counter, $current_dir, $test_folder] );
 				$group_seed_count = 0;
@@ -108,9 +109,16 @@ sub make_call {
 		}
 	$work_PPB->end;
 	$_->join for threads->list;
-	
-	`cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total`;
-	`cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed`;
+	#print STDERR "WHAT?\n";
+	my @cmd;
+	push @cmd, "cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total";
+	push @cmd, "cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed";
+	foreach my $arg (@cmd) {
+		#print STDERR "$arg\n";
+		`$arg`;
+		}
+	#`cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total`;
+	#`cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed`;
 	return $group_seeds;
 	}
 
@@ -127,7 +135,7 @@ sub print_results {
 		chomp;
 		my @mas = split/\t/;
 		my $pval = $mas[3];
-		$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
+		#$pval = ((-1)*int(10*log($pval)/log(10))/1) unless $pval eq 'NA';
 		my $ad = $mas[1];
 		$ad = int($ad) unless $ad eq 'NA';
 		my $alpha = $mas[4];
@@ -151,7 +159,7 @@ sub print_results {
 		my @mas = split/\t/;
 		next if ($group_seeds->{$mas[0]}->{tag} ne 'ALL');
 		my $pval = $mas[1];
-		$pval = ((-1) * int(10*log(min(1, ($pval * ($options->{panel_size}))))/log(10))/1) unless $pval eq 'NA';
+		#$pval = ((-1) * int(10*log(min(1, ($pval * ($options->{panel_size}))))/log(10))/1) unless $pval eq 'NA';
 		my $index  = $group_seeds->{$mas[0]}->{index};
 		next if (defined($printed_indexes{$index}));
 		my @info;
@@ -270,12 +278,18 @@ sub get_panel_size {
 
 sub run {
 	my $options = shift;
+	#print STDERR "HERE1\n";
 	my $sample_data = get_sample_data($options);
+	#print STDERR "HERE2\n";
 	my $beta = get_beta($options);
+	#print STDERR "HERE3\n";
 	my $job_list = get_job_list($options, $sample_data, $beta);
-
+	
+	#print STDERR "HERE4\n";
 	get_panel_size($options);
+	#print STDERR "HERE5\n";
 	my $group_seeds = make_call($options, $sample_data, $beta, $job_list);
+	#print STDERR "HERE6\n";
 	print_results($options, $group_seeds);
 	}
 

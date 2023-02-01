@@ -32,24 +32,35 @@ sub pass_by_tag {
 	if ($tag eq 'ALL') {$tag = ''} else {$tag = "_$tag"}
 	
 	my $is_there_not_NA = 0;
+	my @p_mas;
 	foreach my $arg (@info_mas) {
 		if ($arg =~ /AODP(\d+)$tag=(\d+|NA)/) {
 			my $number = 1;
 			my $local = $2;
 			if ($local eq 'NA') {
-				foreach my $arg2 (@info_mas) {
-					if ($arg2 =~ /AODAD$number$tag=(\d+),(\d+)/) {
-						if ($2 < 5) {
-							return 0;
-							}
-						}
-					}
-				}
+				$local = 0;
+				} 
+			push @p_mas, $local;
 			if ($local ne 'NA') {$is_there_not_NA = 1} else {next}
 			if ($local < $options->{local}) {
-				$filter = 0
+				$filter = 0;
 				}
 			}
+		}
+	#my $p_string = join(" ", map {10**((-1)*($_/10))} @p_mas);
+	my $p_string = join(" ", @p_mas);
+	my $current_dir = $options->{current_dir};
+	if ($p_string eq '') {return 0}
+	my $p_global = `R --slave -f $current_dir/lib/Fisher.r --args $p_string`; chomp $p_global;
+	if ($p_global > 0) {
+		#$p_global = (-10)*log($p_global)/log(10)
+       		} else {
+		$p_global = $options->{global} + 10;
+		}
+	if (($filter eq 1)or($p_global > $options->{global})) {
+		return $p_global;
+		} else {
+		return 0;
 		}
 	$filter = 0 if $is_there_not_NA eq 0;
 	return $filter;

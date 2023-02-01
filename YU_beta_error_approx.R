@@ -61,11 +61,14 @@ if (nrow(data) < baselineDataCount) {
 	cat("NA\n")
 	q()
 	}
+
 baselineDataCount <- min(baselineDataCount, round(baselineDataFraction*nrow(data)))
 dataCurrent <- data[1:baselineDataCount,]
 distrCurrent <- fitCustom(data = dataCurrent$AF, weights = dataCurrent$weight)
 
-cat("DATA PRIMER:\n")
+cat("WHOLE DATASET:\n")
+print(data)
+cat("\nDATA PRIMER:\n")
 print(dataCurrent)
 cat("SHIFTING DATA PRIMER FOR SUITABLE DISTRIBUTION\n")
 
@@ -135,18 +138,23 @@ cat("Starting beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCur
 cat("ITERATIONAL SIGNAL SEARCH\n")
 
 for (i in ((baselineDataCount + 1 + base_shift):nrow(data))) {
-	pval_local <- 1 - ppb(floor(round_custom(data[i,]$AD) - 1), distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = data[i,]$DP)
+	ad_actual <- floor(round_custom(data[i,]$AD) - 1)
+	pval_local <- 1 - ppb(ad_actual, distrCurrent$estimate[[1]], distrCurrent$estimate[[2]], c = data[i,]$DP)
+	left_count <- nrow(data) - i
 	if (pval_local < pval_threshold_for_distr) {
-		break
-		} else {
-		dataCurrent <- data[(1+base_shift+skip):i,]
-		#print(dataCurrent)
-		distrCurrent <- fitCustom(data = dataCurrent$AF, weights = dataCurrent$weight)
-		#print(distrCurrent$estimate[[1]])
-		#print(distrCurrent$estimate[[2]])
+		if (((left_count/(nrow(data) + 1)) > 0.1)&&((ppois(ad_actual, data[i,]$DP/10000) > pval_threshold_for_distr) || (ad_actual < 4))&&((pval_local > pval_threshold_for_distr/1000) || (ad_actual < 4))) {
+			data[i:nrow(data),]$weight <- 5
+			} else {
+			cat("FAILED: ",i," (",nrow(data)-i," left)\tAD: ",data[i,]$AD,' (actual: ',ad_actual,') /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
+			break
+			}
 		}
+	dataCurrent <- data[(1+base_shift+skip):i,]
+	distrCurrent <- fitCustom(data = dataCurrent$AF, weights = dataCurrent$weight)
+	#print(distrCurrent$estimate[[1]])
+	#print(distrCurrent$estimate[[2]])
 	#print(dataCurrent)
-	cat(i,"\tAD: ",data[i,]$AD,' /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
+	cat("PASSED: ",i," (",nrow(data)-i," left)\tAD: ",data[i,]$AD,' (actual: ',ad_actual,') /DP:',data[i,]$DP,' /AF:',data[i,]$AF,"\t /P:",pval_local,"\t /P:",pval_threshold_for_distr,"\t /A",distrCurrent$estimate[[1]],"\t /B",distrCurrent$estimate[[2]],"\n")
 	}
 cat("Final beta distribution est: ",distrCurrent$estimate[[1]], "-", distrCurrent$estimate[[2]], "\n")
 cat(distrCurrent$estimate[[1]],"\t",distrCurrent$estimate[[2]],"\t",mean(dataCurrent$AF));
