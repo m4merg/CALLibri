@@ -18,7 +18,7 @@ use Pod::Usage;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 15;
+        my $str = join '' => map $set[rand @set], 1 .. 25;
         return $str
         }
 

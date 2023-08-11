@@ -16,6 +16,7 @@ use Score;
 use Cigar;
 use List::Util qw/shuffle/;
 
+my $BQ_threshold = 25;
 my $string_edit_calc = __DIR__ . "/lev.py";
 
 our @ISA = qw(Exporter);
@@ -157,7 +158,9 @@ sub select_amplicon {
         my $Variation           = shift;
         my $alignment           = shift;
         my $amplicons = $Variation->{amplicons};
+	return (undef, undef) unless defined $amplicons;
 	my ($ref, $match, $query) = $alignment->padded_alignment;
+	
 	$match =~ s/^\s+|\s+$//g;
         if (scalar @{$amplicons} eq 0) {
                 return undef;
@@ -193,7 +196,7 @@ sub normalizeBQ {
 	my $class	= shift;
 	my $sam = $class->sam;
 	my $Design = $class->Design;
-	my $alignmentCountMax = 100000;
+	my $alignmentCountMax = 500000;
 	my $NCount;
 	my $BQMatrix;
 	my $sumScore = 0;
@@ -276,9 +279,9 @@ sub pipeline {
 			next unless defined($stat);
 			my $qscore = $class->get_qscore($alignment, $stat);
 			#print STDERR "!",$alignment->qname,"\t",$stat->{oref_add},"\t",$stat->{oalt_add},"\t",$alignment->qual,"\t",Score->new($qscore)->phred,"\n";
-			next if (Score->new($qscore)->phred) < 15;
+			next if (Score->new($qscore)->phred) < $BQ_threshold;
 			my $read;my $tags = [];
-			#$read->{name}           = $alignment->qname;
+			#$stat->{name}           = $alignment->qname;
 			$read->{BQ}			= $qscore;
 			$read->{strand}			= $alignment->strand;
 			($read->{amplicon}, $tags)	= select_amplicon($CandidateVariation, $alignment);

@@ -21,7 +21,7 @@ my @knownTags = qw(ShortOverlap);
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 15;
+        my $str = join '' => map $set[rand @set], 1 .. 25;
         return $str
         }
 
@@ -120,6 +120,12 @@ sub make_call {
 	#`cat $test_folder/ppb_$pval_calc_seed.out.total.p* > $test_folder/ppb_$pval_calc_seed.out.total`;
 	#`cat $test_folder/ppb_$pval_calc_seed.out.detailed.p* > $test_folder/ppb_$pval_calc_seed.out.detailed`;
 	return $group_seeds;
+	}
+
+sub clear_log {
+	my $options = shift;
+	my $pval_calc_seed = $options->{pval_calc_seed};
+	`rm $options->{test_folder}/ppb_$pval_calc_seed*`;
 	}
 
 sub print_results {
@@ -278,19 +284,22 @@ sub get_panel_size {
 
 sub run {
 	my $options = shift;
-	#print STDERR "HERE1\n";
+	print STDERR "HERE1\n";
 	my $sample_data = get_sample_data($options);
-	#print STDERR "HERE2\n";
+	print STDERR "HERE2\n";
 	my $beta = get_beta($options);
-	#print STDERR "HERE3\n";
+	print STDERR "HERE3\n";
 	my $job_list = get_job_list($options, $sample_data, $beta);
 	
-	#print STDERR "HERE4\n";
+	print STDERR "HERE4\n";
 	get_panel_size($options);
-	#print STDERR "HERE5\n";
+	print STDERR "HERE5\n";
 	my $group_seeds = make_call($options, $sample_data, $beta, $job_list);
-	#print STDERR "HERE6\n";
+	print STDERR "HERE6\n";
 	print_results($options, $group_seeds);
+
+	print STDERR "HERE7\n";
+	clear_log($options);
 	}
 
 sub option_builder {

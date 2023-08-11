@@ -21,7 +21,7 @@ my $work_YU   = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 15;
+        my $str = join '' => map $set[rand @set], 1 .. 25;
         return $str
         }
 
@@ -82,6 +82,33 @@ sub generate_count_data {
 	$_->join for threads->list;
 
 	return $sample_file;
+	}
+
+sub clear_log {
+	my $options = shift;
+	my $sample_file = shift;
+	my $beta = shift;
+	
+	my $log_file = $options->{target_vcf};
+	my $commd = "rm $log_file";
+	print STDERR "COMM1: $commd\n";
+	`rm $log_file`;
+	foreach my $seed (values %{$sample_file}) {
+		$log_file = $options->{test_folder}."/$seed";
+		$commd = "rm $log_file";
+		print STDERR "COMM2: $commd\n";
+		`rm $log_file`;
+		}
+	foreach my $seed (keys %{$beta}) {
+		$log_file = $options->{test_folder}."/YU_result_$seed";
+		$commd = "rm $log_file";
+		print STDERR "COMM3: $commd\n";
+		`rm $log_file`;
+		$log_file = $options->{test_folder}."/YU_data_$seed";
+		$commd = "rm $log_file";
+		print STDERR "COMM4: $commd\n";
+		`rm $log_file`;
+		}
 	}
 
 sub read_count_data {
@@ -273,15 +300,36 @@ sub print_distributions {
 
 sub run {
 	my $options = shift;
+	my ($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] GET TARGET VCF\n";
 	get_target_vcf($options);
 	if ((-s ($options->{target_vcf})) eq 0) {
 		return 0;
 		}
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] GENERATE COUNT DATA\n";
 	my $sample_file = generate_count_data($options);
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] READ COUNT DATA\n";
 	my ($sample_data, $job_list) = read_count_data($options, $sample_file);
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] FITTING DISTRIBUTIONS\n";
 	my $beta = fitting_distributions($options, $sample_data, $job_list);
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] READ DISTRIBUTIONS\n";
 	$beta = read_distributions($options, $beta);
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] PRINT DISTRIBUTIONS\n";
 	print_distributions($options, $beta);
+
+	($sec,$min,$hour) = localtime();
+	print STDERR "[$hour:$min:$sec] CLEAR LOG\n";
+	clear_log($options, $sample_data, $beta);
 	}
 
 sub option_builder {

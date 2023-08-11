@@ -80,9 +80,11 @@ sub load_VarDict {
 			foreach my $seg (@{$class->segments}) {
 				next if $CandidateVariation->{contig} ne $seg->{contig};
 				if (($CandidateVariation->{position} > $seg->{start})and($CandidateVariation->{position} <= $seg->{end})) {
-					push(@{$seg->{variations}}, $CandidateVariation);
-					push (@added, $seg);
-					++$count;
+					if ($CandidateVariation->{position} + length($CandidateVariation->{ref}) > $seg->{end}) {} else {
+						push(@{$seg->{variations}}, $CandidateVariation);
+						push (@added, $seg);
+						++$count;
+						}
 					}
 				}
 			die "Multiple maps to segments for mutation $mas[0]:$mas[1]$mas[3]>$alt\n" if $count > 1;
@@ -148,7 +150,9 @@ sub load_amplicons {
 			next if $seg->{contig} ne $mas[0];
 			foreach my $CandidateVariation (@{$seg->{variations}}) {
 				if (($CandidateVariation->{position} > $mas[1])and($CandidateVariation->{position} <= $mas[2])) {
-					push(@{$CandidateVariation->{amplicons}}, [$mas[1], $mas[2]]);
+					if ($CandidateVariation->{position} + length($CandidateVariation->{ref}) > $mas[2]) {} else {
+						push(@{$CandidateVariation->{amplicons}}, [$mas[1], $mas[2]]);
+						}
 					}
 				}
 			}

@@ -23,6 +23,8 @@ sub generate_seed {
         return $str
         }
 
+my %p_string_dict;
+
 sub pass_by_tag {
 	my $options = shift;
 	my $info = shift;
@@ -51,7 +53,13 @@ sub pass_by_tag {
 	my $p_string = join(" ", @p_mas);
 	my $current_dir = $options->{current_dir};
 	if ($p_string eq '') {return 0}
-	my $p_global = `R --slave -f $current_dir/lib/Fisher.r --args $p_string`; chomp $p_global;
+	my $p_global = 0;
+	if (defined($p_string_dict{$p_string})) {
+		$p_global = $p_string_dict{$p_string};
+		} else {
+		$p_global = `R --slave -f $current_dir/lib/Fisher.r --args $p_string`; chomp $p_global;
+		$p_string_dict{$p_string} = $p_global;
+		}
 	if ($p_global > 0) {
 		#$p_global = (-10)*log($p_global)/log(10)
        		} else {

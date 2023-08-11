@@ -21,7 +21,7 @@ my $work_YU   = Thread::Queue->new;
 
 sub generate_seed {
         my @set = ('0' ..'9', 'A' .. 'Z', 'a' .. 'z');
-        my $str = join '' => map $set[rand @set], 1 .. 15;
+        my $str = join '' => map $set[rand @set], 1 .. 25;
         return $str
         }
 
@@ -128,11 +128,25 @@ sub get_vcf_array {
 	return $vcf_array;
 	}
 
+sub clear_log {
+	my $options = shift;
+	my $vcf_array = shift;
+	foreach my $seed (keys %{$vcf_array}) {
+		my $log_file = "".$options->{test_folder}."/$seed.vcf";
+		`rm $log_file`;
+		}
+	foreach my $seed (keys %{$vcf_array}) {
+		my $log_file = $options->{test_folder}."/$seed.data";
+		`rm $log_file`;
+		}
+	}
+
 sub run {
 	my $options = shift;
 	my $vcf_array = get_vcf_array($options);
 	generate_count_data($options, $vcf_array);
 	write_output($options, $vcf_array);
+	clear_log($options, $vcf_array);
 	}
 
 sub option_builder {
@@ -144,7 +158,7 @@ sub option_builder {
 		's|sample=s'   => \$opts{'sample'},
 		'o|output=s' => \$opts{'output'},
 		'p|panel=s' => \$opts{'panel'},
-		'n|output=s' => \$opts{'threads'},
+		'n|threads=s' => \$opts{'threads'},
 		'seed|seed=s'   => \$opts{'seed'}
 	);
 	pod2usage(0) if($opts{'h'});
