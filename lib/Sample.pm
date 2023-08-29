@@ -274,6 +274,7 @@ sub pipeline {
 			next if $alignment->get_tag_values("NOT_PRIMARY") eq '1';
 			
 			#next unless $alignment->qname eq '53QOO:02914:04180';
+			#print STDERR Dumper $CandidateVariation;
 			my $stat = get_stat($CandidateVariation, $alignment);
 			#print STDERR Dumper $stat;
 			next unless defined($stat);
@@ -306,13 +307,14 @@ sub pipeline {
 					$read->{tags}->{$key} = 0;
 					}
 				}
+			#print STDERR "OREF:".$stat->{oref}." REF:".$CandidateVariation->{ref}." MATCH:'".$stat->{match_ref}."'\n";
 			if (($stat->{oref} eq ($CandidateVariation->{ref})) and ($stat->{oalt} eq ($CandidateVariation->{alt})) and ($stat->{match_around} =~ /^\|*-\|*$/)) {
 					$read->{vote} = 'alt';
 					$read->{MQ} = $alignment->qual;
 					$class->allele($CandidateVariation->{index})->add_read($read);
 					#print STDERR "ALT\n";
 					#print STDERR Dumper $stat;
-				} elsif ($stat->{match_var} =~ /^\|*$/) {
+				} elsif ($stat->{match_ref} =~ /^\|*$/) {
 					$read->{vote} = 'ref';
 					$read->{MQ} = $alignment->qual;
 					#print STDERR "REF\n";
@@ -415,6 +417,7 @@ sub get_stat { # see pipeline function
 
         $stat->{match} = $match;
 	$stat->{match_var} = substr($stat->{match}, $aps, $ape-$aps);
+	$stat->{match_ref} = substr($stat->{match}, $aps, length($Mutation->{ref}));
 	$stat->{ref} = $ref;
 	$stat->{query} = $query;
         $stat->{aps} = $aps; $stat->{ape} = $ape;

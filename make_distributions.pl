@@ -100,6 +100,9 @@ sub clear_log {
 		`rm $log_file`;
 		}
 	foreach my $seed (keys %{$beta}) {
+		if (not(defined($beta->{$seed}->{index}))) {
+			next
+			}
 		$log_file = $options->{test_folder}."/YU_result_$seed";
 		$commd = "rm $log_file";
 		print STDERR "COMM3: $commd\n";
@@ -250,11 +253,15 @@ sub get_target_vcf {
 			close WRITE_VCF;
 			$options->{target_vcf} = $target_vcf;
 			} else {
-			$options->{target_vcf} = $options->{vcf};
+			$options->{target_vcf} = $target_vcf;
+			my $comm = "cp ".$options->{vcf}." $target_vcf";
+			`$comm`;
 			}
 		close BDATA_FH;	
 		} else {
-		$options->{target_vcf} = $options->{vcf};
+		$options->{target_vcf} = $target_vcf;
+		my $comm = "cp ".$options->{vcf}." $target_vcf";
+		`$comm`;
 		}
 	}
 
@@ -306,6 +313,9 @@ sub run {
 	if ((-s ($options->{target_vcf})) eq 0) {
 		return 0;
 		}
+	if ((stat ($options->{target_vcf}))[7] eq 0) {
+		return 0;
+		}
 
 	($sec,$min,$hour) = localtime();
 	print STDERR "[$hour:$min:$sec] GENERATE COUNT DATA\n";
@@ -322,11 +332,11 @@ sub run {
 	($sec,$min,$hour) = localtime();
 	print STDERR "[$hour:$min:$sec] READ DISTRIBUTIONS\n";
 	$beta = read_distributions($options, $beta);
-
+	
 	($sec,$min,$hour) = localtime();
 	print STDERR "[$hour:$min:$sec] PRINT DISTRIBUTIONS\n";
 	print_distributions($options, $beta);
-
+	
 	($sec,$min,$hour) = localtime();
 	print STDERR "[$hour:$min:$sec] CLEAR LOG\n";
 	clear_log($options, $sample_file, $beta);

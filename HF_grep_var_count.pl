@@ -58,16 +58,19 @@ sub head {
 	$Design->{config}->{qscore_averaging_range} = $qscore_averaging_range;
 	$Sample->normalizeBQ();
 	#print STDERR Dumper $Sample->{BQMatrix};
+	#print STDERR "STARTED SEGMENTING\n"; #
 	foreach my $seg (@{$Design->segments}) {
-		#print STDERR Dumper $seg;
+		#print STDERR Dumper $seg; #
 		next if scalar (@{$seg->{variations}}) eq 0;
 		#print $seg->{contig},"\t",$seg->{start},"\t",$seg->{end},"\t",scalar (@{$seg->{variations}}),"\n";
 		$Sample->pipeline($seg);
 		foreach my $CandidateVariation (@{$seg->{variations}}) {
+			#print STDERR Dumper $CandidateVariation; #
 			my $index = $CandidateVariation->{index};
 			#next if $CandidateVariation->{position} ne '6529203';
 			#print STDERR (scalar @{$Sample->allele($index)->{reads}}),"\n";
 			foreach my $amplicon (uniq (map {$_->{amplicon}} @{$Sample->allele($index)->{reads}})) {
+				#print STDERR Dumper $amplicon; #
 				foreach my $strand (qw(-1 1)) {
 					foreach my $tag (@knownTags) {
 						my $altCount = $Sample->allele($index)->readCount({vote => 'alt', strand => $strand, amplicon => $amplicon, tags => {$tag => 1}});
