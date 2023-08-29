@@ -34,7 +34,7 @@ sub worker_HF {
 		my $test_folder	= $passed->[4];
 		my $current_dir	= $passed->[5];
 		
-		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf | grep 'ALL' > $test_folder/$seed";
+		my $cmd = "perl $current_dir/HF_grep_var_count.pl $bam $panel $vcf | grep 'ALL' > $test_folder/$seed 2> /dev/null";
 		`$cmd`;
 		}
 	}
@@ -45,7 +45,7 @@ sub worker_YU {
 		my $test_folder = $passed->[1];
 		my $current_dir	= $passed->[2];
 		
-		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 > $test_folder/YU_result_$seed";
+		my $cmd = "R --slave -f $current_dir/YU_beta_error_approx.R --args $current_dir/fitdistr/ $test_folder/YU_data_$seed 1 > $test_folder/YU_result_$seed 2> /dev/null";
 		`$cmd`;
 		}
 	}
@@ -103,11 +103,11 @@ sub clear_log {
 		$log_file = $options->{test_folder}."/YU_result_$seed";
 		$commd = "rm $log_file";
 		print STDERR "COMM3: $commd\n";
-		`rm $log_file`;
+		`rm -f $log_file`;
 		$log_file = $options->{test_folder}."/YU_data_$seed";
 		$commd = "rm $log_file";
 		print STDERR "COMM4: $commd\n";
-		`rm $log_file`;
+		`rm -f $log_file`;
 		}
 	}
 
@@ -329,7 +329,7 @@ sub run {
 
 	($sec,$min,$hour) = localtime();
 	print STDERR "[$hour:$min:$sec] CLEAR LOG\n";
-	clear_log($options, $sample_data, $beta);
+	clear_log($options, $sample_file, $beta);
 	}
 
 sub option_builder {
